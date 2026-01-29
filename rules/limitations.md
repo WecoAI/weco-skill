@@ -56,6 +56,18 @@ Each optimization step calls an LLM. 100 steps × evaluation time adds up.
 
 Results vary between runs. The same optimization may find different solutions.
 
+### Prompt Optimization (LLM-as-Judge)
+
+When using LLM-as-judge to optimize prompts, skills, or natural language artifacts:
+
+**Higher cost per evaluation**: Each evaluation requires LLM calls for both execution and judging. With 15 test scenarios, expect 30+ LLM calls per Weco step.
+
+**Increased variance**: LLM outputs are non-deterministic, making metrics noisier than computational measurements. Mitigate with multiple runs per scenario and more test cases.
+
+**Risk of gaming**: The prompt may optimize for judge preferences rather than real-world quality. Validate final results on held-out scenarios not used during optimization.
+
+**Rubric sensitivity**: Small changes to the judge prompt can significantly affect scores. Lock the rubric before optimization and don't modify mid-run.
+
 ## Risk Mitigation
 
 1. **Version control**: Commit before running Weco
