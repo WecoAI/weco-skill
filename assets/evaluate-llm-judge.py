@@ -1,57 +1,100 @@
-"""Evaluate prompt/skill quality using LLM-as-judge.
+"""Evaluate prompt quality using LLM-as-judge.
 
-IMPORTANT: Weco optimizes a SINGLE metric. This script should print exactly one
+This runs a single evaluation. Weco calls this once per optimization step.
+Statistical rigor is handled separately:
+1. Baseline variance measurement (before optimization) - see measure_baseline.py
+2. Progressive held-out validation (after optimization) - see validate_holdout.py
+
+IMPORTANT: Weco optimizes a SINGLE metric. This script prints exactly one
 metric in the format: metric_name: value (e.g., "prompt_quality: 4.25")
 
-This template evaluates natural language artifacts (prompts, skills, templates)
-by having an LLM judge the quality of responses they produce.
+IMPORTANT: ANTHROPIC_API_KEY must be available via .env file or environment
+variable. The agent must never read, check, or handle API keys directly.
 
-API KEYS: This script reads API keys from environment variables automatically.
-Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY before running:
-    export ANTHROPIC_API_KEY='your-key-here'
+IMPORTANT: Run the environment pre-flight before first use:
+1. Create a venv: python -m venv .venv && source .venv/bin/activate
+2. Install deps: pip install anthropic python-dotenv
+3. Verify .env: test -r .env (or ../../.env)
+4. Dry-run: bash evaluate.sh
+See SKILL.md "Environment Pre-flight" for the full checklist.
 """
 import json
-import os
+import sys
+from pathlib import Path
+
+# Load API keys from .env file if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # =============================================================================
-# CONFIGURATION - Adjust these for your use case
+# CONFIGURATION
 # =============================================================================
-
-# Number of times to run each scenario (reduces variance)
-RUNS_PER_SCENARIO = 1  # Increase to 2-3 for more stable results
 
 # Model for executing the prompt being optimized
-# Anthropic models require ANTHROPIC_API_KEY env var
-# OpenAI models require OPENAI_API_KEY env var
-EXECUTION_MODEL = "claude-sonnet-4-20250514"
+EXECUTION_MODEL = "claude-sonnet-4-5"
 
 # Model for judging responses (use a capable model)
-JUDGE_MODEL = "claude-sonnet-4-20250514"
+JUDGE_MODEL = "claude-sonnet-4-5"
+
+# All models used in this script (for validation)
+ALL_MODELS = list(set([EXECUTION_MODEL, JUDGE_MODEL]))
+
+
+# =============================================================================
+# MODEL VALIDATION
+# =============================================================================
+
+def validate_models():
+    """Smoke test that all configured models are available on this API key."""
+    from anthropic import Anthropic
+    client = Anthropic()
+    all_ok = True
+    for model_id in ALL_MODELS:
+        try:
+            client.messages.create(
+                model=model_id,
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+            print(f"  ok: {model_id}", file=sys.stderr)
+        except Exception as e:
+            print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
+            all_ok = False
+    return all_ok
 
 
 # =============================================================================
 # LOAD THE ARTIFACT BEING OPTIMIZED
 # =============================================================================
 
+# Resolve paths relative to this script's directory, not the working directory.
+# This works whether the script lives at .weco/prompt-optimization/evaluate.py
+# or any other location — it always looks for optimize.txt alongside itself.
+SCRIPT_DIR = Path(__file__).parent
+
 def load_artifact(path):
     with open(path) as f:
         return f.read()
 
 
-# The prompt/skill being optimized
-optimized = load_artifact(".weco/optimize.txt")
+# The prompt/skill being optimized (same directory as this script)
+optimized = load_artifact(SCRIPT_DIR / "optimize.txt")
 
 
 # =============================================================================
-# TEST SCENARIOS - Define 10-20 diverse test cases
+# TRAINING SCENARIOS - Used during optimization
 # =============================================================================
+# Reserve ~20% of scenarios as held-out for final validation (in scenarios.py).
 # Each scenario should have:
 # - input: The user request or context
 # - expected_behaviors: List of behaviors the response should exhibit
 #
 # Cover: common cases, edge cases, failure modes, boundary conditions
 
-TEST_SCENARIOS = [
+TRAINING_SCENARIOS = [
     {
         "input": "TODO: Replace with actual user request",
         "expected_behaviors": [
@@ -59,7 +102,7 @@ TEST_SCENARIOS = [
             "TODO: Expected behavior 2",
         ],
     },
-    # TODO: Add 10-20 diverse scenarios
+    # TODO: Add diverse scenarios
     #
     # Example for an agent skill:
     # {
@@ -194,41 +237,41 @@ def judge_response(scenario: dict, response: str) -> dict:
 # =============================================================================
 
 if __name__ == "__main__":
-    if not TEST_SCENARIOS or "TODO" in str(TEST_SCENARIOS[0]):
-        print("Error: TEST_SCENARIOS not configured. Edit evaluate-llm-judge.py")
+    if not TRAINING_SCENARIOS or "TODO" in str(TRAINING_SCENARIOS[0]):
+        print("Error: TRAINING_SCENARIOS not configured. Edit this file.")
+        print("prompt_quality: 0.00")
+        exit(1)
+
+    # Validate models before running any scenarios
+    print("Validating model availability...", file=sys.stderr)
+    if not validate_models():
+        print("Error: One or more models are not available. Fix the model "
+              "configuration at the top of this file.", file=sys.stderr)
         print("prompt_quality: 0.00")
         exit(1)
 
     total_score = 0.0
     scenario_count = 0
 
-    for i, scenario in enumerate(TEST_SCENARIOS):
-        scenario_scores = []
+    for i, scenario in enumerate(TRAINING_SCENARIOS):
+        try:
+            # Execute the prompt
+            response = run_with_prompt(optimized, scenario)
 
-        for run in range(RUNS_PER_SCENARIO):
-            try:
-                # Execute the prompt
-                response = run_with_prompt(optimized, scenario)
+            # Judge the response
+            judgment = judge_response(scenario, response)
+            score = judgment["overall"]
 
-                # Judge the response
-                judgment = judge_response(scenario, response)
-                scenario_scores.append(judgment["overall"])
+            total_score += score
+            scenario_count += 1
 
-                # Optional: Print progress
-                if RUNS_PER_SCENARIO > 1:
-                    print(f"Scenario {i+1}, run {run+1}: {judgment['overall']}/5")
+            print(f"Scenario {i+1}/{len(TRAINING_SCENARIOS)}: {score:.2f}/5")
 
-            except Exception as e:
-                print(f"Error in scenario {i+1}, run {run+1}: {e}")
-                scenario_scores.append(1.0)  # Penalize failures
+        except Exception as e:
+            print(f"Error in scenario {i+1}: {e}")
+            total_score += 1.0  # Penalize failures
+            scenario_count += 1
 
-        # Average scores for this scenario
-        avg_scenario_score = sum(scenario_scores) / len(scenario_scores)
-        total_score += avg_scenario_score
-        scenario_count += 1
-
-        print(f"Scenario {i+1}/{len(TEST_SCENARIOS)}: {avg_scenario_score:.2f}/5")
-
-    # Final metric
+    # Final metric for Weco
     avg_score = total_score / scenario_count if scenario_count > 0 else 0.0
     print(f"prompt_quality: {avg_score:.2f}")

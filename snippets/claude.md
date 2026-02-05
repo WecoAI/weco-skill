@@ -1,6 +1,6 @@
 # Weco Code Optimization
 
-Weco automates optimization by iteratively refining code against any metric you define — speed, accuracy, latency, cost, or anything else you can measure.
+Weco automates optimization by iteratively refining **code, prompts or agent skills** against any metric you define — speed, accuracy, latency, cost, or anything else you can measure.
 
 Weco systematically explores code variants, tests them against your evaluation, and delivers better-performing solutions. It outperforms human experts on complex optimization tasks.
 

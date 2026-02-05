@@ -17,74 +17,71 @@ Use LLM-as-judge evaluation when optimizing:
 
 1. **Use structured JSON output** - The judge must return parseable scores
 2. **Design independent dimensions** - Each rubric dimension should measure one thing
-3. **Use diverse test scenarios** - 10-20 scenarios covering edge cases, common cases, and failure modes
-4. **Reduce variance** - Multiple runs per scenario, capable judge model
-5. **Never read or display API keys** - Keys come from environment variables only
+3. **Use diverse test scenarios** - Cover edge cases, common cases, and failure modes
+4. **Measure baseline variance** - Required before optimization to establish significance threshold
+5. **Never read, check, or handle API keys** - Keys must be set by the user before launching the agent
 
 ## API Key Handling
 
-LLM-as-judge requires API keys. **Never read, display, or store API keys.**
+LLM-as-judge requires API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.).
 
-### Required Environment Variables
+**The agent must NEVER read, check, display, or handle API keys in any way.** Do not run commands like `echo $ANTHROPIC_API_KEY`, `env | grep KEY`, `printenv`, or read `.env` file contents. Do not ask users to paste keys into the chat. Do not write keys to any files.
 
-| Provider | Variable | Required For |
-|----------|----------|--------------|
-| Anthropic | `ANTHROPIC_API_KEY` | Claude models (judge or execution) |
-| OpenAI | `OPENAI_API_KEY` | GPT models (judge or execution) |
+The evaluation scripts load from `.env` via `python-dotenv` and the `evaluate.sh` wrapper also sources `.env`. If evaluation fails due to a missing key, tell the user to create a `.env` file:
 
-### Before Running Evaluation
-
-Prompt the user to set keys if needed:
-
-> "Prompt optimization requires API access for LLM-as-judge. Please set these environment variables:
-> ```bash
-> export ANTHROPIC_API_KEY='your-key-here'
+> "The evaluation requires `ANTHROPIC_API_KEY`. Please add it to a `.env` file in your project root:
+>
 > ```
-> Let me know when ready."
+> ANTHROPIC_API_KEY=your-key-here
+> ```
+>
+> Let me know when it's set up and I'll continue."
 
-### In Evaluation Code
+The agent should never be involved in key setup beyond this message.
 
-Use standard SDK initialization—they read from environment automatically:
-
-```python
-from anthropic import Anthropic
-from openai import OpenAI
-
-# These read ANTHROPIC_API_KEY and OPENAI_API_KEY automatically
-anthropic_client = Anthropic()
-openai_client = OpenAI()
-```
-
-**Do not:**
-- Read `.env` files or config files
-- Print or echo key values
-- Ask users to paste keys in chat
-- Write keys to any files
+**Cursor sandbox note:** Cursor's sandbox may block `.env` file reads even when the file exists. If evaluation fails with permission errors on `.env`, tell the user to set `required_permissions: ['all']` in their Cursor configuration and re-run. Do not retry without this fix — each attempt wastes an evaluation run.
 
 ## Template
 
 See [assets/evaluate-llm-judge.py](../assets/evaluate-llm-judge.py) for the complete template.
 
 ```python
-"""Evaluate prompt/skill quality using LLM-as-judge."""
+"""Evaluate prompt quality using LLM-as-judge.
+
+This runs a single evaluation. Weco calls this once per optimization step.
+Statistical rigor is handled by:
+1. Baseline variance measurement (before optimization)
+2. Progressive held-out validation (after optimization)
+"""
 import json
-import os
-from anthropic import Anthropic  # or openai
+import sys
+from pathlib import Path
+
+# Load API keys from .env file if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+from anthropic import Anthropic
+
+# Resolve paths relative to this script's directory
+SCRIPT_DIR = Path(__file__).parent
 
 def load_artifact(path):
-    with open(path) as f:
-        return f.read()
+    return Path(path).read_text()
 
-# Load the prompt/skill being optimized
-optimized = load_artifact(".weco/optimize.txt")
+# Load the prompt being optimized (same directory as this script)
+optimized = load_artifact(SCRIPT_DIR / "optimize.txt")
 
-# Test scenarios - MUST have 10-20 diverse cases
-TEST_SCENARIOS = [
+# Training scenarios only - held-out scenarios used for final validation
+TRAINING_SCENARIOS = [
     {
         "input": "User request or context here",
         "expected_behaviors": ["behavior1", "behavior2"],
     },
-    # TODO: Add more scenarios covering:
+    # Add scenarios covering:
     # - Common use cases
     # - Edge cases
     # - Potential failure modes
@@ -110,23 +107,42 @@ The response should exhibit: {expected_behaviors}
 ## Output Format
 
 Return ONLY valid JSON:
-{
+{{
   "reasoning": "<brief explanation>",
-  "scores": {
+  "scores": {{
     "clarity": <1-5>,
     "completeness": <1-5>,
     "correctness": <1-5>,
     "helpfulness": <1-5>
-  },
+  }},
   "overall": <1-5>
-}
+}}
 """
+
+# Model configuration - use aliases, not dated snapshot IDs
+EXECUTION_MODEL = "claude-sonnet-4-5"
+JUDGE_MODEL = "claude-sonnet-4-5"
+
+def validate_models(client, *model_ids):
+    """Smoke test model availability before running evaluation."""
+    all_ok = True
+    for model_id in set(model_ids):
+        try:
+            client.messages.create(
+                model=model_id, max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+            print(f"  ok: {model_id}", file=sys.stderr)
+        except Exception as e:
+            print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
+            all_ok = False
+    return all_ok
 
 def run_with_prompt(prompt, scenario):
     """Execute the prompt being optimized against a scenario."""
     client = Anthropic()
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=EXECUTION_MODEL,
         max_tokens=1024,
         system=prompt,
         messages=[{"role": "user", "content": scenario["input"]}],
@@ -140,7 +156,7 @@ def judge_response(scenario, response):
         expected_behaviors=scenario["expected_behaviors"]
     )
     result = client.messages.create(
-        model="claude-sonnet-4-20250514",  # Use capable model for judging
+        model=JUDGE_MODEL,
         max_tokens=512,
         messages=[{
             "role": "user",
@@ -149,14 +165,21 @@ def judge_response(scenario, response):
     )
     return json.loads(result.content[0].text)
 
-# Run evaluation
+# Validate models before running scenarios
+print("Validating model availability...", file=sys.stderr)
+if not validate_models(Anthropic(), EXECUTION_MODEL, JUDGE_MODEL):
+    print("Error: One or more models unavailable. Fix model config.", file=sys.stderr)
+    print("prompt_quality: 0.00")
+    sys.exit(1)
+
+# Single evaluation - Weco handles optimization, validation handles rigor
 total_score = 0
-for scenario in TEST_SCENARIOS:
+for scenario in TRAINING_SCENARIOS:
     response = run_with_prompt(optimized, scenario)
     judgment = judge_response(scenario, response)
     total_score += judgment["overall"]
 
-avg_score = total_score / len(TEST_SCENARIOS)
+avg_score = total_score / len(TRAINING_SCENARIOS)
 print(f"prompt_quality: {avg_score:.2f}")
 ```
 
@@ -369,27 +392,90 @@ A good judge prompt has:
 4. **Reasoning requirement** - Forces the judge to justify scores
 5. **Structured output** - JSON for reliable parsing
 
+## Variance Estimation (Required Before Optimization)
+
+---
+
+**⚠️ REQUIRED GATE: This is not optional ⚠️**
+
+You MUST measure baseline variance before running optimization. Do not skip this step. Without variance measurement, you cannot know whether optimization results are real improvements or noise.
+
+---
+
+LLM-as-judge evaluation has inherent variance. **You must measure this variance before optimization** to establish the significance threshold.
+
+### Measuring Baseline
+
+Run the full evaluation multiple times before optimizing. Ask the user how many runs:
+
+| Runs | Confidence | Recommendation |
+|------|------------|----------------|
+| 3 | Acceptable | Minimum for reliable estimate |
+| 5 | Good | Recommended default |
+
+```python
+import statistics
+import math
+
+def measure_baseline(prompt_path, scenarios, runs=5):
+    """Measure baseline mean and variance.
+
+    Args:
+        runs: Number of evaluation runs. Minimum 3.
+    """
+    if runs < 3:
+        raise ValueError("Need at least 3 runs for reliable std dev")
+
+    scores = []
+    for i in range(runs):
+        print(f"Baseline run {i + 1}/{runs}...")
+        total = 0
+        for scenario in scenarios:
+            response = run_with_prompt(prompt_path, scenario)
+            judgment = judge_response(scenario, response)
+            total += judgment["overall"]
+        run_score = total / len(scenarios)
+        scores.append(run_score)
+        print(f"  Score: {run_score:.2f}")
+
+    mean = statistics.mean(scores)
+    std_dev = statistics.stdev(scores)
+    std_err = std_dev / math.sqrt(runs)
+
+    return {
+        "mean": mean,
+        "scores": scores,
+        "std_dev": std_dev,
+        "std_err": std_err,
+        "n_runs": runs,
+    }
+
+# Example output:
+# {"mean": 3.7, "scores": [3.6, 3.8, 3.7, 3.5, 3.9], "std_dev": 0.15, "std_err": 0.07, "n_runs": 5}
+```
+
+### Interpreting Baseline Variance
+
+| Std Dev | Quality | Recommendation |
+|---------|---------|----------------|
+| < 0.15 | Excellent | Good to proceed |
+| 0.15 - 0.3 | Acceptable | Proceed with caution |
+| > 0.3 | High | Add scenarios or simplify before optimizing |
+
+If variance is high (> 0.3), **warn the user and suggest fixes before proceeding.** Do not proceed without user acknowledgment. Suggest:
+- Adding more scenarios (15-20 provide more stable signal than 5)
+- Using more capable models for judging
+- Adding reference examples for domain-specific tasks
+- Reviewing scenarios for ambiguous cases
+
 ## Reducing Variance
 
 LLM outputs are non-deterministic. To get stable metrics:
 
-1. **Run multiple times** - Average 2-3 runs per scenario
-2. **Use capable models** - Claude Opus or GPT-4o for judging
-3. **More scenarios** - 15-20 scenarios provide more stable signal than 5
-4. **Structured output** - JSON reduces parsing failures
-
-```python
-# Example: Multiple runs per scenario
-RUNS_PER_SCENARIO = 3
-
-for scenario in TEST_SCENARIOS:
-    scenario_scores = []
-    for _ in range(RUNS_PER_SCENARIO):
-        response = run_with_prompt(optimized, scenario)
-        judgment = judge_response(scenario, response)
-        scenario_scores.append(judgment["overall"])
-    total_score += sum(scenario_scores) / len(scenario_scores)
-```
+1. **Use capable models** - Claude Opus or GPT-4o for judging
+2. **More scenarios** - 15-20 scenarios provide more stable signal than 5
+3. **Structured output** - JSON reduces parsing failures
+4. **Add reference examples** - For style/domain tasks, examples reduce ambiguity
 
 ## Test Scenario Design
 
@@ -421,17 +507,78 @@ Be specific about what you want:
 }
 ```
 
-## Cost Considerations
+## Reference Examples for Domain-Specific Optimization
 
-Each Weco step runs the full evaluation:
-- N scenarios × (1 execution + 1 judgment) = 2N LLM calls per step
-- With 15 scenarios and 5 Weco steps = 150 LLM calls
-- Estimated cost: $1-15 depending on models used
+For style matching, impersonation, brand voice, or domain-specific tasks, **generic rubrics are insufficient**. The optimizer needs concrete examples of "good" output.
 
-To reduce cost:
-- Start with fewer scenarios during development
-- Use faster/cheaper models for execution (not judging)
-- Cache scenario results when prompt hasn't changed
+### When Reference Examples Are Required
+
+| Task Type | Examples Needed? | What to Collect |
+|-----------|------------------|-----------------|
+| Style/impersonation | Yes | Messages written by the target person |
+| Brand voice | Yes | Approved copy that exemplifies the tone |
+| Domain accuracy | Yes | Expert-verified correct answers |
+| General helpfulness | No | Generic rubric usually sufficient |
+
+### How to Use Reference Examples
+
+**Option 1: Include in judge prompt (style matching)**
+
+```python
+JUDGE_PROMPT = """
+You are evaluating whether the response matches the target writing style.
+
+## Reference Examples (this is what good looks like)
+{reference_examples}
+
+## Rubric
+Rate how well the response matches the style of the reference examples:
+- Word choice and vocabulary
+- Sentence structure and length
+- Tone and personality
+- Domain-specific patterns
+
+## Response to Evaluate
+{response}
+
+Return JSON with scores 1-5 for each dimension.
+"""
+```
+
+**Option 2: Similarity scoring**
+
+```python
+def score_style_similarity(response, reference_examples):
+    """Score how similar the response is to reference examples."""
+    prompt = f"""
+    Compare this response to the reference examples.
+    Rate similarity 1-5 where 5 means "could have been written by the same person".
+
+    Reference examples:
+    {reference_examples}
+
+    Response to evaluate:
+    {response}
+
+    Return: {{"similarity": <1-5>, "reasoning": "<explanation>"}}
+    """
+    # ... call judge model
+```
+
+**Option 3: Few-shot in the optimized prompt**
+
+Include reference examples directly in the prompt being optimized, so the model learns the target style.
+
+### Requesting Examples from Users
+
+> "For this style-matching optimization, I need to see what 'good' looks like.
+>
+> Can you share 3-5 examples of ideal outputs? For instance:
+> - If impersonating someone, share messages they've actually written
+> - If matching brand voice, share approved copy
+> - If domain-specific, share expert-verified answers
+>
+> Without these, the optimizer can only make generic improvements."
 
 ## Common Pitfalls
 
@@ -462,8 +609,8 @@ Use capable models for judging—judge quality directly affects optimization qua
 
 ```python
 # Recommended configuration
-JUDGE_MODEL = "claude-opus-4-20250514"      # High quality for judging
-EXECUTION_MODEL = "claude-sonnet-4-20250514"  # Faster/cheaper for execution
+JUDGE_MODEL = "claude-opus-4-6"      # High quality for judging
+EXECUTION_MODEL = "claude-sonnet-4-5"  # Faster/cheaper for execution
 ```
 
 ### Multi-Judge Ensemble
@@ -472,7 +619,7 @@ For reduced variance on high-stakes optimization, use multiple judges and averag
 
 ```python
 JUDGE_MODELS = [
-    "claude-opus-4-20250514",
+    "claude-opus-4-6",
     "gpt-4.1",
 ]
 
@@ -524,9 +671,17 @@ overall = aggregate_scores(judgment, DIMENSION_WEIGHTS)
 
 ## Held-Out Validation
 
+---
+
+**⚠️ REQUIRED GATE: This is not optional ⚠️**
+
+You MUST split scenarios into training and held-out sets before optimization. Do not skip this step. Without held-out validation, you cannot distinguish real improvement from overfitting.
+
+---
+
 Always reserve scenarios for final validation. This catches overfitting to the training scenarios.
 
-### Implementation
+### Splitting Scenarios
 
 ```python
 import random
@@ -549,21 +704,18 @@ TRAINING_SCENARIOS = splits["training"]  # Used during optimization
 HOLDOUT_SCENARIOS = splits["holdout"]    # Used only for final validation
 ```
 
-### Validation Script
+### Held-Out Validation
 
-Create a separate `validate_holdout.py` that runs after optimization:
+After optimization, run a single evaluation on held-out scenarios and compare against the baseline:
 
 ```python
-"""Validate optimized prompt on held-out scenarios."""
+"""validate_holdout.py - Validate on held-out scenarios."""
+import math
 from pathlib import Path
-from scenarios import HOLDOUT_SCENARIOS
-from evaluate import run_with_prompt, judge_response
 
-# Load optimized and baseline prompts
-optimized = Path(".weco/task/optimize.txt").read_text()
-baseline = Path(".weco/task/baseline.txt").read_text()
 
-def evaluate_prompt(prompt, scenarios):
+def run_single_evaluation(prompt, scenarios):
+    """Run one complete evaluation across all scenarios."""
     total = 0
     for scenario in scenarios:
         response = run_with_prompt(prompt, scenario)
@@ -571,55 +723,151 @@ def evaluate_prompt(prompt, scenarios):
         total += judgment["overall"]
     return total / len(scenarios)
 
-baseline_score = evaluate_prompt(baseline, HOLDOUT_SCENARIOS)
-optimized_score = evaluate_prompt(optimized, HOLDOUT_SCENARIOS)
 
-improvement = (optimized_score - baseline_score) / baseline_score * 100
+def validate_holdout(baseline_stats, optimized_path, scenarios):
+    """Validate optimized prompt on held-out scenarios.
 
-print(f"Held-out baseline: {baseline_score:.2f}")
-print(f"Held-out optimized: {optimized_score:.2f}")
-print(f"Held-out improvement: {improvement:+.1f}%")
+    Args:
+        baseline_stats: Dict with 'mean', 'std_dev', 'n_runs' from measure_baseline()
+        optimized_path: Path to optimized prompt
+        scenarios: Held-out scenarios
+    """
+    optimized = Path(optimized_path).read_text()
 
-# Output for logging
-print(f"holdout_quality: {optimized_score:.2f}")
+    baseline_mean = baseline_stats["mean"]
+    std_dev = baseline_stats["std_dev"]
+    n_baseline = baseline_stats["n_runs"]
+
+    # Single evaluation on held-out
+    print("Running held-out evaluation...")
+    score = run_single_evaluation(optimized, scenarios)
+    print(f"  Score: {score:.2f}")
+
+    # SE of difference: accounts for uncertainty in baseline mean (N runs)
+    # and single optimized eval (1 run)
+    se_diff = std_dev * math.sqrt(1/n_baseline + 1)
+    threshold = 2 * se_diff
+
+    improvement = score - baseline_mean
+    significant = improvement > threshold
+
+    print(f"  Improvement: {improvement:+.2f}")
+    print(f"  Threshold (2xSE): {threshold:.2f}")
+    print(f"  Significant: {significant}")
+
+    status = "NO_IMPROVEMENT" if improvement <= 0 else (
+        "SIGNIFICANT" if significant else "NOT_SIGNIFICANT"
+    )
+
+    return {
+        "status": status,
+        "baseline_mean": baseline_mean,
+        "optimized_score": score,
+        "improvement": improvement,
+        "threshold": threshold,
+        "significant": significant,
+    }
 ```
+
+### Understanding the SE Threshold
+
+The threshold `2 x SE_diff` accounts for uncertainty in both measurements:
+
+```
+SE_diff = std_dev x sqrt(1/N_baseline + 1/N_optimized)
+```
+
+| Baseline runs | Optimized runs | SE_diff (x std_dev) | Threshold (x std_dev) |
+|---------------|----------------|---------------------|----------------------|
+| 3 | 1 | 1.15 | 2.31 |
+| 5 | 1 | 1.10 | 2.19 |
+
+The baseline runs establish variance. Each subsequent evaluation (optimization steps and held-out validation) uses a single run.
 
 ### Interpreting Results
 
-| Training Δ | Held-out Δ | Interpretation |
-|------------|------------|----------------|
-| +30% | +25% | Good generalization |
-| +30% | +10% | Likely overfitting—consider more diverse scenarios |
-| +30% | -5% | Definite overfitting—reject optimization |
-| +5% | +5% | Marginal improvement—may not be worth the change |
+| Status | Meaning | Action |
+|--------|---------|--------|
+| NO_IMPROVEMENT | Optimized scored lower than baseline | Reject |
+| NOT_SIGNIFICANT | Improvement within noise | Reject |
+| SIGNIFICANT | Improvement > 2xSE | Accept |
 
-## Cost Estimation
+## evaluate.sh
 
-### Per-Step Cost
+Wrapper script for weco. Sources `.env` for API keys, activates virtual environments, and runs evaluation:
 
+```bash
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+# Source .env for API keys
+if [ -f .env ]; then
+    set -a; source .env; set +a
+elif [ -f ../../.env ]; then
+    set -a; source ../../.env; set +a
+fi
+
+# Activate virtual environment if it exists
+if [ -f .venv/bin/activate ]; then
+    source .venv/bin/activate
+elif [ -f ../../.venv/bin/activate ]; then
+    source ../../.venv/bin/activate
+fi
+
+python evaluate.py
 ```
-cost_per_step = num_scenarios × (execution_cost + judge_cost)
+
+## Environment Pre-flight
+
+**Before the first evaluation run**, complete the environment pre-flight checklist described in SKILL.md:
+
+1. **Detect package manager** — `uv`, `pip`, `npm`, `cargo`, etc.
+2. **Create isolated environment** — `.weco/<task>/.venv` for Python
+3. **Install dependencies** — `pip install anthropic python-dotenv` (or equivalent)
+4. **Verify `.env` is accessible** — `test -r .env` (never read contents)
+5. **Dry-run** — `bash .weco/<task>/evaluate.sh` — fix any errors before proceeding
+
+Do not proceed to baseline measurement or optimization until the dry-run passes.
+
+## Full Workflow
+
+```bash
+# 1. Setup
+mkdir -p .weco/task
+cp prompt.txt .weco/task/optimize.txt
+cp prompt.txt .weco/task/baseline.txt
+
+# 2. Environment pre-flight
+cd .weco/task
+python -m venv .venv && source .venv/bin/activate
+pip install anthropic python-dotenv
+test -r ../../.env && echo ".env: OK"
+cd ../..
+
+# 3. Dry-run evaluation
+bash .weco/task/evaluate.sh
+# Fix any errors before proceeding
+
+# 4. Measure baseline (ask user: 3 or 5 runs?)
+python measure_baseline.py .weco/task/baseline.txt
+# Output: mean=3.7, std_dev=0.15, n_runs=5
+
+# 5. Run optimization (single evaluation per step)
+weco run \
+  --source .weco/task/optimize.txt \
+  --eval-command "bash .weco/task/evaluate.sh" \
+  --metric prompt_quality \
+  --goal maximize \
+  --steps 10 \
+  --apply-change
+
+# 6. Validate on held-out (single eval)
+python validate_holdout.py
+# Output:
+#   Score: 4.1, improvement: +0.4, threshold: 0.33 -> SIGNIFICANT
+
+# 7. Accept and apply
+cp .weco/task/optimize.txt prompt.txt
 ```
 
-Example with 12 scenarios:
-- Execution (Sonnet): 12 × $0.003 = $0.036
-- Judging (Opus): 12 × $0.015 = $0.18
-- **Per step: ~$0.22**
-
-### Full Optimization
-
-```
-total_cost = cost_per_step × num_steps + holdout_validation_cost
-```
-
-Example with 10 steps + 3 holdout scenarios:
-- Optimization: $0.22 × 10 = $2.20
-- Holdout validation: 3 × 2 × $0.009 = $0.05 (baseline + optimized)
-- **Total: ~$2.25**
-
-### Cost Reduction Strategies
-
-1. **Fewer scenarios during development** - Start with 6-8, expand once approach is validated
-2. **Cheaper execution model** - Use Haiku for execution, keep Opus for judging
-3. **Fewer steps initially** - Use `--steps 5` to validate, then run full optimization
-4. **Cache baseline** - Don't re-run baseline scenarios if prompt hasn't changed

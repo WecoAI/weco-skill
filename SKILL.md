@@ -88,6 +88,340 @@ Each optimization lives in its own subdirectory under `.weco/`:
 
 ---
 
+## Environment Variables and API Keys in Generated Code
+
+When generating scripts that require API keys or other environment variables (e.g., evaluation scripts that call the Anthropic API), **always load from a `.env` file** in addition to standard environment variables. This is the preferred method because:
+- Cursor users cannot `export` env vars that persist across terminal sessions
+- `.env` files work consistently across Claude Code, Cursor, and standalone execution
+- It avoids the agent ever needing to handle keys directly
+
+### Implementation by Language
+
+**Python** — use `python-dotenv`:
+```python
+# Add at the top of any script that needs API keys/env vars
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+```
+
+**Node.js / TypeScript** — use `dotenv`:
+```javascript
+// Add at the top of the entry point
+require('dotenv').config();
+// or for ESM:
+import 'dotenv/config';
+```
+
+**Bash** — source `.env` directly:
+```bash
+# Source .env if it exists (for API keys etc.)
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+```
+
+**Other languages** — use the language's standard dotenv library (e.g., `godotenv` for Go, `dotenvy` for Rust).
+
+### When to Set Up `.env` Loading
+
+- **Automatically**: When generating evaluation scripts or any code that calls external APIs, include `.env` loading by default. Do not ask the user — just add it.
+- **`.env` file creation**: If the script needs keys and no `.env` file exists, ask the user to create one and tell you when it's ready:
+
+> "This script needs `ANTHROPIC_API_KEY` to run. Please create a `.env` file in your project root:
+>
+> ```
+> ANTHROPIC_API_KEY=your-key-here
+> ```
+>
+> Let me know when it's set up and I'll continue."
+
+### Safety Rules
+
+- **Never read `.env` contents** — the agent must never `cat .env`, `grep .env`, or inspect the file
+- **Never write keys to `.env`** — the user creates and manages this file themselves
+- **Ensure `.env` is gitignored** — when creating a `.env` loading pattern, check that `.env` is in `.gitignore`. If not, add it automatically:
+
+```bash
+# Add .env to .gitignore if not already present
+grep -qxF '.env' .gitignore 2>/dev/null || echo '.env' >> .gitignore
+```
+
+### Cursor Sandbox Restrictions
+
+Cursor runs commands in a sandbox that may block file access — including reading `.env` files. This means `.env` can exist and pass a `test -r` check, but `source .env` or `load_dotenv()` will fail at runtime with a permission error.
+
+**Symptoms:**
+- `.env` file exists but evaluation fails with `PermissionError` or similar sandbox denial
+- `source .env` silently fails or is blocked
+- `python-dotenv` raises an error reading `.env`
+
+**Fix:** The user must configure Cursor to allow file access for evaluation scripts. In the Cursor task or agent configuration, set:
+
+```
+required_permissions: ['all']
+```
+
+Or configure the specific file access permissions needed.
+
+**During pre-flight**, if you detect a sandbox permission error on `.env` access, tell the user immediately:
+
+> "Cursor's sandbox is blocking `.env` file access. Your evaluation scripts need to read `.env` for API keys.
+>
+> Please update your Cursor configuration to allow file access:
+>
+> ```
+> required_permissions: ['all']
+> ```
+>
+> Then re-run the evaluation. Let me know when it's updated."
+
+Do not retry or debug further until the user confirms the sandbox is configured. Each failed attempt wastes an evaluation run.
+
+---
+
+## Model Reference
+
+Use these model IDs when generating evaluation scripts. **Always use aliases** (not dated snapshot IDs) so scripts stay current.
+
+### Anthropic Models
+
+| Model | API ID | Cost (in/out per MTok) | Use For |
+|-------|--------|------------------------|---------|
+| Claude Opus 4.6 | `claude-opus-4-6` | $5 / $25 | Best judge model, complex evaluation |
+| Claude Sonnet 4.5 | `claude-sonnet-4-5` | $3 / $15 | Default skill/prompt execution, good judge |
+| Claude Haiku 4.5 | `claude-haiku-4-5` | $1 / $5 | User simulator, input detection, cheap tasks |
+
+**Legacy (still available):**
+
+| Model | API ID | Cost (in/out per MTok) |
+|-------|--------|------------------------|
+| Claude Sonnet 4 | `claude-sonnet-4-0` | $3 / $15 |
+| Claude Haiku 3 | `claude-3-haiku-20240307` | $0.25 / $1.25 |
+
+### OpenAI Models
+
+| Model | API ID | Use For |
+|-------|--------|---------|
+| GPT-5.2 | `gpt-5.2` | Latest flagship |
+| GPT-5 | `gpt-5` | Flagship |
+| GPT-5 Mini | `gpt-5-mini` | Cost-effective |
+| GPT-5 Nano | `gpt-5-nano` | Cheapest |
+| GPT-4.1 | `gpt-4.1` | Reliable, well-tested |
+| GPT-4.1 Mini | `gpt-4.1-mini` | Cost-effective |
+| GPT-4.1 Nano | `gpt-4.1-nano` | Cheapest |
+| GPT-4o | `gpt-4o` | Previous flagship |
+| GPT-4o Mini | `gpt-4o-mini` | Previous cost-effective |
+| o4 Mini | `o4-mini` | Reasoning |
+| o3 | `o3` | Reasoning |
+
+### Default Model Assignments for Evaluation
+
+| Role | Default | Why |
+|------|---------|-----|
+| Skill/prompt execution (agent under test) | `claude-sonnet-4-5` | Good balance of capability and cost |
+| User simulator | `claude-haiku-4-5` | Cheap, fast, sufficient for simulation |
+| Input detection (`needs_user_input`) | `claude-haiku-4-5` | Binary classification, cheapest model works |
+| Transcript/response judge | `claude-sonnet-4-5` | Needs good judgment; upgrade to `claude-opus-4-6` for high-stakes |
+
+### Model Validation (Required Before Evaluation)
+
+**Before running any evaluation**, validate that the configured models are available on the user's API key. Run a single-token smoke test for each model:
+
+```python
+def validate_models(client, *model_ids):
+    """Smoke test model availability. Call before running evaluation."""
+    all_ok = True
+    for model_id in model_ids:
+        try:
+            client.messages.create(
+                model=model_id,
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+            print(f"  ok: {model_id}", file=sys.stderr)
+        except Exception as e:
+            print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
+            all_ok = False
+    return all_ok
+```
+
+If a model fails, tell the user which model is unavailable and suggest alternatives from the table above. Do not proceed with evaluation until all models validate successfully.
+
+---
+
+## Environment Pre-flight
+
+**⚠️ REQUIRED: Run this checklist before any evaluation (baseline or optimization). ⚠️**
+
+Environment issues — missing package managers, broken virtual environments, inaccessible `.env` files, missing dependencies — cause evaluation failures that look like optimization failures. Catching them upfront in a single pass prevents cascading debug cycles.
+
+### Pre-flight Checklist
+
+#### 1. Detect Language and Package Manager
+
+Identify what's available in the project environment:
+
+| Language | Check for (in order) | Dependency Files |
+|----------|----------------------|-----------------|
+| Python | `uv`, `pip`, `poetry`, `conda` | `requirements.txt`, `pyproject.toml`, `setup.py` |
+| Node.js | `npm`, `yarn`, `pnpm`, `bun` | `package.json` |
+| Rust | `cargo` | `Cargo.toml` |
+| Go | `go` | `go.mod` |
+| Ruby | `bundle` | `Gemfile` |
+
+```bash
+# Example: detect Python package manager
+which uv 2>/dev/null && echo "uv" || \
+which pip 2>/dev/null && echo "pip" || \
+which poetry 2>/dev/null && echo "poetry" || \
+which conda 2>/dev/null && echo "conda" || \
+echo "NONE"
+```
+
+**If no package manager is found**, tell the user what's needed and wait:
+
+> "I need a Python package manager to install evaluation dependencies. Please install one:
+>
+> - `uv` (recommended): `curl -LsSf https://astral.sh/uv/install.sh | sh`
+> - `pip`: Usually included with Python (`python -m ensurepip`)
+>
+> Let me know when it's ready."
+
+**Record which package manager is available** — you'll need it for dependency installation and for fixing missing packages during optimization.
+
+#### 2. Create Isolated Environment (if applicable)
+
+Some languages need virtual environments to avoid polluting the user's system. Create one inside the task directory:
+
+**Python with uv:**
+```bash
+cd .weco/<task>
+uv venv .venv
+source .venv/bin/activate
+```
+
+**Python with pip/venv:**
+```bash
+cd .weco/<task>
+python -m venv .venv
+source .venv/bin/activate
+```
+
+**Python with conda:**
+```bash
+conda create -p .weco/<task>/.venv python=3.11 -y
+conda activate .weco/<task>/.venv
+```
+
+**Node.js, Rust, Go, Ruby:** These use project-local dependency management by default (`node_modules/`, `target/`, `vendor/`). No virtual environment needed — skip this step.
+
+**Important:** Always create the environment inside the task directory (`.weco/<task>/.venv`) so it doesn't interfere with the user's project environment.
+
+#### 3. Install Dependencies
+
+Install all packages required by the evaluation script **before** the first run:
+
+**Python:**
+```bash
+# Install evaluation dependencies
+pip install anthropic python-dotenv  # or uv pip install ...
+
+# If the project has a requirements file, install those too
+pip install -r requirements.txt 2>/dev/null || true
+```
+
+**Node.js:**
+```bash
+npm install  # or yarn install, pnpm install
+```
+
+**Other languages:** Use the standard dependency installation command for the language's package manager.
+
+**Key point:** Install now, not later. Discovering missing packages during optimization step 3 of 10 wastes time and Weco credits.
+
+#### 4. Verify .env Accessibility
+
+Check that `.env` exists and is readable **without reading its contents**:
+
+```bash
+# Check .env exists and is readable (NOT its contents)
+test -r .env && echo ".env: OK" || \
+test -r ../../.env && echo "Project root .env: OK" || \
+echo ".env: NOT FOUND"
+```
+
+If the evaluation needs API keys and no `.env` is found, prompt the user:
+
+> "The evaluation script needs `ANTHROPIC_API_KEY`. Please create a `.env` file in your project root:
+>
+> ```
+> ANTHROPIC_API_KEY=your-key-here
+> ```
+>
+> Let me know when it's set up."
+
+Do not proceed until `.env` is confirmed accessible.
+
+#### 5. Dry-Run the Evaluation Script
+
+Run the evaluation script once end-to-end as a smoke test:
+
+```bash
+bash .weco/<task>/evaluate.sh
+```
+
+**Check the output for:**
+
+| Error Pattern | Fix |
+|---------------|-----|
+| `ModuleNotFoundError` / `Cannot find module` | Install the missing package |
+| `PermissionError` / `Permission denied` | `chmod +x` the script, or check sandbox restrictions (see below) |
+| `FileNotFoundError` | Check paths, copy missing data files |
+| API authentication errors | Prompt user to check `.env` (without reading it) |
+| Model not found / unavailable | Fix model ID (see Model Reference above) |
+| Sandbox denial on `.env` or venv | **Cursor sandbox** — tell user to set `required_permissions: ['all']` (see "Cursor Sandbox Restrictions" above) |
+
+**Cursor users:** If the dry-run fails with permission errors on `.env` or virtual environment operations, this is almost certainly a sandbox restriction — not a file permission issue. See "Cursor Sandbox Restrictions" in the Environment Variables section above. Do not waste attempts debugging file permissions; address the sandbox configuration first.
+
+**If the dry-run succeeds:** The environment is ready. Proceed with baseline measurement.
+
+**If it fails:** Fix the issue, re-run the dry-run, and repeat until it passes. Do not proceed to baseline or optimization until the dry-run completes successfully.
+
+### Pre-flight in evaluate.sh
+
+The `evaluate.sh` wrapper should handle environment activation automatically so each Weco step runs in the correct environment:
+
+```bash
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+# Source .env for API keys
+if [ -f .env ]; then
+    set -a; source .env; set +a
+elif [ -f ../../.env ]; then
+    set -a; source ../../.env; set +a
+fi
+
+# Activate virtual environment if it exists
+if [ -f .venv/bin/activate ]; then
+    source .venv/bin/activate
+elif [ -f ../../.venv/bin/activate ]; then
+    source ../../.venv/bin/activate
+fi
+
+python evaluate.py optimize.md
+```
+
+Adapt the last line for the project's language (e.g., `node evaluate.js`, `cargo run`, etc.).
+
+---
+
 ## Presenting the Baseline
 
 Before optimization, establish the baseline and present it with context. Adapt your framing based on whether the current solution is already good or has clear room for improvement.
@@ -242,19 +576,21 @@ WECO_TASK="<inferred_task_name>"
 mkdir -p .weco/$WECO_TASK
 cp <source_file> .weco/$WECO_TASK/optimize.<ext>
 cp <source_file> .weco/$WECO_TASK/baseline.<ext>
-
-# Detect and prepare environment
-source .venv/bin/activate 2>/dev/null || true
-
-# Detect package manager (remember this for installing dependencies later)
-which uv && echo "Package manager: uv" || \
-which pip && echo "Package manager: pip" || \
-which conda && echo "Package manager: conda"
 ```
 
-**Remember which package manager is available** - you'll need it to install missing dependencies during the run.
+### Step 5: Environment Pre-flight
 
-### Step 5: Generate Evaluation
+**Run the full pre-flight checklist** (see "Environment Pre-flight" section above) before generating or running any evaluation:
+
+1. Detect package manager (uv, pip, npm, cargo, etc.)
+2. Create isolated environment (`.weco/$WECO_TASK/.venv` for Python)
+3. Install evaluation dependencies
+4. Verify `.env` is accessible
+5. (After generating evaluate.sh in Step 6) Dry-run the evaluation script
+
+Do not proceed to evaluation until the dry-run passes.
+
+### Step 6: Generate Evaluation
 
 **Skip this step if using an existing evaluation script.**
 
@@ -268,7 +604,7 @@ Create an evaluation script based on the inferred goal. Use sensible defaults:
 
 Write the evaluation script and wrapper automatically.
 
-### Step 6: Run Optimization with Async Monitoring
+### Step 7: Run Optimization with Async Monitoring
 
 **Start Weco as a background task (use `run_in_background`):**
 
@@ -331,7 +667,8 @@ Do NOT continue to the next monitoring cycle without attempting the install.
 | `ModuleNotFoundError: No module named 'foo'` | Run `pip install foo` immediately |
 | `ImportError: cannot import name 'X' from 'Y'` | Run `pip install --upgrade Y` immediately |
 | `FileNotFoundError` on data files | Copy or generate the required data |
-| `PermissionError` | Run `chmod +x <file>` |
+| `PermissionError` on scripts | Run `chmod +x <file>` |
+| `PermissionError` on `.env` or venv | **Cursor sandbox** — stop the run, tell user to set `required_permissions: ['all']`, then restart |
 
 **The ONLY exceptions where you should NOT install:**
 - User explicitly said "don't install new packages"
@@ -385,7 +722,7 @@ Step 5/5: Finalizing...
 ✓ Complete: 3.2x speedup
 ```
 
-### Step 7: Celebrate Wins Dramatically
+### Step 8: Celebrate Wins Dramatically
 
 When optimization completes, make it feel like an achievement:
 
@@ -406,7 +743,7 @@ When optimization completes, make it feel like an achievement:
 >
 > Full report saved to `.weco/<task>/report.md`"
 
-### Step 8: Ask Before Applying
+### Step 9: Ask Before Applying
 
 **Always ask before modifying project files:**
 
@@ -509,7 +846,23 @@ If found:
 >
 > If you've used Weco on this code before, using the existing script ensures consistency."
 
-### Phase 3: Establish the Baseline
+### Phase 3: Environment Pre-flight
+
+**Run the full pre-flight checklist** (see "Environment Pre-flight" section above):
+
+1. Detect package manager
+2. Create isolated environment (`.weco/<task>/.venv` for Python, etc.)
+3. Install evaluation dependencies
+4. Verify `.env` is accessible
+5. Dry-run the evaluation script after it's created
+
+Discuss any issues with the user as you go:
+
+> "I'm setting up the evaluation environment. I'll need to install `anthropic` and `python-dotenv` — is that OK?"
+
+Do not proceed to baseline measurement until the dry-run passes.
+
+### Phase 4: Establish the Baseline
 
 Run baseline measurement and present it with appropriate context. Adapt based on whether the current performance is suboptimal or already good.
 
@@ -532,7 +885,7 @@ Run baseline measurement and present it with appropriate context. Adapt based on
 >
 > Want to see what's possible?"
 
-### Phase 4: Code Analysis
+### Phase 5: Code Analysis
 
 Analyze the optimization target:
 
@@ -554,7 +907,7 @@ Analyze the optimization target:
 
 **Wait for approval before any refactoring.**
 
-### Phase 5: Evaluation Alignment
+### Phase 6: Evaluation Alignment
 
 Discuss the evaluation strategy:
 
@@ -571,7 +924,7 @@ Discuss the evaluation strategy:
 
 **Design a stable interface:** The evaluation script should import and call a well-defined function from the optimized file (e.g., `run_pipeline()`, `compute_result()`). This creates a clear API contract the optimizer must preserve. Avoid `exec()` of code snippets.
 
-### Phase 6: Small Run Validation
+### Phase 7: Small Run Validation
 
 Before committing to a full optimization, validate with a single step:
 
@@ -593,7 +946,7 @@ weco run \
 
 Iterate until aligned, then proceed to full run.
 
-### Phase 7: Full Optimization with Async Monitoring
+### Phase 8: Full Optimization with Async Monitoring
 
 **Start Weco as a background task (use `run_in_background`):**
 
@@ -656,7 +1009,8 @@ Do NOT continue to the next monitoring cycle without attempting the install.
 | `ModuleNotFoundError: No module named 'foo'` | Run `pip install foo` immediately |
 | `ImportError: cannot import name 'X' from 'Y'` | Run `pip install --upgrade Y` immediately |
 | `FileNotFoundError` on data files | Copy or generate the required data |
-| `PermissionError` | Run `chmod +x <file>` |
+| `PermissionError` on scripts | Run `chmod +x <file>` |
+| `PermissionError` on `.env` or venv | **Cursor sandbox** — stop the run, tell user to set `required_permissions: ['all']`, then restart |
 
 **The ONLY exceptions where you should NOT install:**
 - User explicitly said "don't install new packages"
@@ -722,7 +1076,7 @@ kill $(cat .weco/$WECO_TASK/run.pid)
 weco run ... --additional-instructions "Do NOT use: transformers, torch, multi_class parameter. sklearn only."
 ```
 
-### Phase 8: Results, Report, and Insights
+### Phase 9: Results, Report, and Insights
 
 Generate comprehensive report at `.weco/<task>/report.md`:
 
@@ -800,7 +1154,7 @@ result = cp.asnumpy(cp.dot(weights_gpu, inputs_gpu))
 >
 > Full report saved to `.weco/model_forward/report.md`"
 
-### Phase 9: Integration
+### Phase 10: Integration
 
 **Always ask before modifying project files:**
 
@@ -964,7 +1318,9 @@ optimization_history:
 
 ## Skill Optimization
 
-Weco can optimize Claude Code skills themselves. This is meta-optimization: using Weco to improve the instructions that guide Claude's behavior.
+Weco can optimize agent skills themselves. This is meta-optimization: using Weco to improve the instructions that guide an agent's behavior. This works with skills for Claude Code, Cursor, or any agent that uses system prompts.
+
+**⚠️ IMPORTANT: Before starting skill optimization, you MUST read `rules/eval-skill.md` in full.** It contains the complete evaluation harness implementation, scenario generation guidelines, and statistical validation procedures. Do not attempt to implement skill evaluation from memory or from the summaries below — read the rule file first.
 
 ### When to Use
 
@@ -977,10 +1333,31 @@ Use skill optimization when:
 ### How It Works
 
 1. **Analyze the skill** - Understand what behaviors it should produce
-2. **Generate test scenarios** - Create realistic multi-turn conversations
-3. **Run conversations** - Execute Claude Code with the skill loaded
-4. **Grade transcripts** - Use Claude to evaluate if expected behaviors occurred
-5. **Iterate** - Weco modifies the skill and re-evaluates
+2. **Check for tool dependencies** - Identify if the skill relies on tool execution (see below)
+3. **Generate test scenarios** - Create realistic multi-turn conversations with a difficulty gradient
+4. **Run conversations** - Execute the skill as a system prompt via API, simulating multi-turn interactions
+5. **Grade transcripts** - Use an LLM judge to evaluate if expected behaviors occurred
+6. **Iterate** - Weco modifies the skill and re-evaluates
+
+### Tool Dependency Check
+
+**Before building the evaluation harness**, check if the skill relies heavily on tool execution. Look for:
+- References to specific scripts or functions (e.g., `analyze.py`, `summarize_csv()`)
+- Instructions that assume file system access
+- Workflows that depend on command execution
+
+If tool-dependent, warn the user:
+
+> "This skill relies on `[tool/script]` for core functionality. The API-based evaluation can test conversational behavior but **cannot execute actual tools**.
+>
+> Options:
+> 1. **Behavioral optimization only** — Evaluate workflow, communication, decision-making
+> 2. **Add tool definitions** — Include tool schemas so the model produces tool_use blocks
+> 3. **Split optimization** — Optimize conversational behavior here, optimize tool code separately with standard Weco code optimization
+>
+> Which approach would you prefer?"
+
+**Do not build the evaluation harness before resolving this.** See `rules/eval-skill.md` for details.
 
 ### Quick Setup
 
@@ -995,16 +1372,16 @@ cp path/to/SKILL.md .weco/skill-optimization/baseline.md
 
 ### Handling Rules
 
-Skills often have associated rules in a `rules/` directory. Copy them to the optimization directory so Claude can reference them during evaluation:
+Skills often have associated rules in a `rules/` directory. Copy them to the optimization directory so they can be included in the system prompt during evaluation:
 
 ```bash
-# Copy rules so they're available during scenarios
+# Copy rules so they're included in the system prompt during evaluation
 cp -r path/to/rules/ .weco/skill-optimization/rules/
 ```
 
-During evaluation, Claude reads these rules on-demand via tool calls, just like in real usage. This keeps the system prompt small and matches actual behavior.
+During evaluation, rules are concatenated with the skill content to form the system prompt, matching how agents load rules in practice.
 
-**Important:** Only SKILL.md is optimized. Rules are reference material, not optimization targets. Weco modifies `optimize.md` (the skill) while rules remain unchanged in the `rules/` directory.
+**Important:** Only SKILL.md is optimized. Rules are reference material included in the system prompt, not optimization targets. Weco modifies `optimize.md` (the skill) while rules remain unchanged in the `rules/` directory.
 
 ### Define Test Scenarios
 
@@ -1056,19 +1433,87 @@ The simulator plays the role of a user responding to Claude. Give it instruction
 """
 ```
 
+### API Key Requirements
+
+Skill evaluation uses the Anthropic API for conversations, simulation, and grading. **Never read, check, or handle API keys.** If evaluation fails due to a missing key, tell the user to create a `.env` file with `ANTHROPIC_API_KEY` and let you know when it's ready. See "Environment Variables and API Keys in Generated Code" above for the general approach.
+
 ### The Evaluation Harness
 
-The harness runs multi-turn Claude Code sessions:
+The harness runs multi-turn conversations via the Anthropic API:
 
-1. **Install the skill** - Write to `.claude/skills/SKILL.md` in a temp directory
-2. **Start a session** - `claude -p "initial message" --output-format json`
+1. **Load the skill as system prompt** - Skill content (plus any rules) becomes the system prompt
+2. **Send initial message** - `client.messages.create(system=skill, messages=[...])`
 3. **Loop until done**:
-   - Check if Claude is waiting for input
-   - Generate user response with simulator
-   - Continue session with `--resume`
+   - Check if the assistant is waiting for user input
+   - Generate simulated user response via API
+   - Continue conversation with accumulated messages
 4. **Grade the transcript** - Did expected behaviors occur?
 
-See `rules/eval-skill.md` for the complete implementation.
+**Read `rules/eval-skill.md` for the complete implementation** — it contains the harness code, simulator, grader, and scenario templates you need to create these files.
+
+### Variance Check Before Optimization
+
+---
+
+**⚠️ REQUIRED GATE: This is not optional ⚠️**
+
+You MUST measure baseline variance before running optimization. Do not skip this step. Without variance measurement, you cannot interpret whether optimization results are real improvements or noise.
+
+---
+
+Skill evaluation has high variance due to multi-turn conversations. **Measure baseline standard deviation before optimizing.**
+
+**Ask how many runs:**
+
+> "Before optimizing, I need to measure evaluation stability. How many baseline runs would you like?
+> - **3 runs** (Recommended minimum)
+> - **5 runs** (Better estimate)
+>
+> Skill evaluation is expensive, so 3-5 runs is usually a good balance."
+
+```bash
+# Run baseline N times (minimum 3)
+for i in $(seq 1 $NUM_RUNS); do
+  python .weco/skill-optimization/evaluate.py
+done
+```
+
+> "Baseline scores: 3.6, 3.8, 3.5, 3.7, 3.6 (std dev: 0.11)
+>
+> Variance is low — evaluation is stable enough to proceed with optimization."
+
+---
+
+**⚠️ VARIANCE CHECK: Gate before optimization ⚠️**
+
+If standard deviation is high (>0.3 on a 5-point scale), **warn the user and suggest fixes before proceeding:**
+
+> "⚠️ **High evaluation variance detected**
+>
+> Your baseline scored 3.2, 3.8, and 3.5 across three runs (std dev: 0.3).
+>
+> With this much variance, a +0.3 improvement could just be noise. Before optimizing, I recommend:
+>
+> 1. **Add more scenarios** to get more stable signal
+> 2. **Make expected_behaviors more specific** to reduce grading ambiguity
+> 3. **Simplify user_simulator_instructions** for more consistent conversations
+>
+> Want to proceed anyway, or address the variance first?"
+
+**Do not proceed without acknowledgment if std dev > 0.3.**
+
+---
+
+### Held-Out Scenarios (Required)
+
+Split scenarios before optimization:
+
+```python
+TRAINING_SCENARIOS = SCENARIOS[:4]  # Optimizer sees these
+HOLDOUT_SCENARIOS = SCENARIOS[4:]   # For final validation only
+```
+
+After optimization, validate on held-out scenarios to confirm improvement is real.
 
 ### Running the Optimization
 
@@ -1083,9 +1528,27 @@ weco run \
   --apply-change
 ```
 
+### Validating Results
+
+After optimization completes, run a single held-out validation:
+
+```bash
+python .weco/skill-optimization/validate_holdout.py
+```
+
+**Compare improvement to std dev:**
+
+> "Training improved: 3.6 → 4.0 (+0.4)
+> Held-out score: 3.8 (baseline: 3.5, improvement: +0.3)
+> Baseline std dev: 0.15
+>
+> **Confidence: HIGH** - Improvement (0.3) is 2× std dev (0.15). This improvement is likely real."
+
+If held-out improvement < 2× baseline std dev, the improvement may be noise.
+
 ### Generating Scenarios for Any Skill
 
-When optimizing an arbitrary skill, analyze it first:
+When optimizing an arbitrary skill, analyze it first. See `rules/eval-skill.md` for the full scenario generation procedure.
 
 **1. Read the skill and identify:**
 - Purpose: What does it help users do?
@@ -1093,25 +1556,29 @@ When optimizing an arbitrary skill, analyze it first:
 - Key behaviors: What should happen?
 - Decision points: Where does it ask for input?
 - Constraints: What should it NOT do?
+- **Weaknesses**: Where are instructions vague, incomplete, or ambiguous?
 
-**2. Generate scenarios covering:**
+**2. Generate scenarios with a difficulty gradient:**
 
-| Type | What to Test |
-|------|--------------|
-| Happy path | Typical usage with cooperative user |
-| Clarification | Vague request requiring questions |
-| Edge case | Unusual but valid inputs |
-| Constraint | Verify the skill respects limits |
-| Error | How it handles problems |
+| Difficulty | % of Scenarios | Purpose |
+|------------|----------------|---------|
+| Easy | ~30% | Sanity checks, should score 4-5/5 on baseline |
+| Medium | ~40% | Quality of execution, should score 3-4/5 |
+| Hard | ~30% | Target weaknesses and gaps, should score 2-3/5 |
 
-**3. Define expected behaviors from skill text:**
+**At least 2 scenarios MUST target areas where the current skill is likely to fail.** If the baseline scores 4.5+ on all scenarios, they are too easy.
+
+**3. Define expected behaviors that test quality, not just presence:**
 
 ```
-Skill says: "Before running optimization, make the user feel the pain"
-→ Expected: "Presents baseline metrics dramatically before starting"
+# Bad - trivially satisfied
+"Analyzes the code"
 
-Skill says: "Always ask before modifying project files"
-→ Expected: "Asks for confirmation before applying changes"
+# Good - requires quality
+"Identifies at least 2 specific bottlenecks with quantitative reasoning"
+
+# Good - tests adaptation
+"Adapts explanation depth to the user's apparent expertise level"
 ```
 
 ### Transcript Logging
@@ -1126,34 +1593,28 @@ transcripts/
 
 Each transcript includes the full conversation and the score. **Review low-scoring transcripts** to understand what went wrong and iterate on the skill.
 
-### Mocking External Services
+### External Services
 
-If the skill invokes external commands or APIs, you'll need to mock them for evaluation.
+The API-based evaluation runs the skill as a system prompt without tool access. The model describes what it *would* do (read files, run commands, etc.) rather than actually executing tools. The grader evaluates whether the model describes the correct behavior:
 
-**IMPORTANT: You cannot fabricate mock data.** Mock responses must come from one of these sources:
+```python
+# The grader checks behavioral intent, not execution
+expected_behaviors = [
+    "Describes running weco with the correct flags",
+    "Mentions checking for existing evaluation scripts",
+    "Says it will back up the original file",
+]
+```
 
-1. **User runs the real command** and provides the output:
-   > "This skill calls `[command]`. Can you run it and paste the output? I'll use it to create the mock."
-
-2. **User describes the expected response:**
-   > "What does a successful response from `[api]` look like? I need the structure to create a mock."
-
-3. **You run the real command** (if you have access and user permission):
-   > "I can run `[command]` to capture its output for mocking. Should I proceed?"
-
-4. **Dry run discovery** - Run the skill, let it fail, and ask the user about the expected response based on the error.
-
-**Never guess or invent API responses** - incorrect mocks will produce meaningless evaluation results.
-
-See `rules/eval-skill.md` for mock implementation examples.
+This works well for evaluating conversational behavior, workflow adherence, and constraint compliance. See `rules/eval-skill.md` for details on limitations.
 
 ### Cost Considerations
 
 Skill evaluation is expensive:
-- Each scenario = 2-10 Claude Code turns
+- Each scenario = 2-10 API calls for multi-turn conversation
 - Each turn needs input detection + potential simulation
 - Each scenario needs grading
-- 4 scenarios × 10 steps = ~200+ LLM calls
+- 4 scenarios x 10 steps = ~200+ LLM calls
 
 Estimated cost: $20-50 per optimization run.
 
@@ -1201,6 +1662,8 @@ Weco iterates on the skill's instructions until it reliably produces these behav
 
 Weco can optimize prompts, templates, and other natural language artifacts using LLM-as-judge evaluation.
 
+**⚠️ IMPORTANT: Before starting prompt optimization, you MUST read `rules/eval-llm-judge.md` in full.** It contains the complete LLM-as-judge evaluation template, rubric presets, variance estimation procedures, and validation logic. Do not attempt to implement prompt evaluation from memory or from the summaries below — read the rule file first.
+
 ### When to Use
 
 Use prompt optimization when:
@@ -1233,29 +1696,21 @@ Use prompt optimization when:
 
 ### API Key Requirements
 
-LLM-as-judge evaluation requires API keys for the judge and execution models. **Never read, display, or ask for API key values.** The evaluation code reads keys from environment variables.
+LLM-as-judge evaluation requires `ANTHROPIC_API_KEY` (and `OPENAI_API_KEY` if using OpenAI models).
 
-**Before running prompt optimization, verify keys are set:**
+**The agent must NEVER read, check, display, or handle API keys in any way.** Do not run commands like `echo $ANTHROPIC_API_KEY`, `env | grep KEY`, `printenv`, or read `.env` file contents. Do not ask users to paste keys into the chat. Do not write keys to any files.
 
-> "Prompt optimization uses LLM-as-judge, which requires API access. Please ensure these environment variables are set for this session:
+If the evaluation scripts fail due to a missing key, tell the user to create a `.env` file:
+
+> "The evaluation requires `ANTHROPIC_API_KEY`. Please add it to a `.env` file in your project root:
 >
-> - `ANTHROPIC_API_KEY` - Required for Claude models
-> - `OPENAI_API_KEY` - Required if using OpenAI models
->
-> You can set them with:
-> ```bash
-> export ANTHROPIC_API_KEY='your-key-here'
+> ```
+> ANTHROPIC_API_KEY=your-key-here
 > ```
 >
-> Let me know when you're ready to continue."
+> Let me know when it's set up and I'll continue."
 
-**Do not:**
-- Read `.env` files or config files containing keys
-- Echo or print environment variable values
-- Ask users to paste keys into the chat
-- Store keys in any files
-
-The evaluation scripts use standard SDK patterns (`Anthropic()`, `OpenAI()`) which automatically read from environment variables.
+See "Environment Variables and API Keys in Generated Code" above for the general approach. The agent should never be involved in key setup beyond this message.
 
 ### Workflow Overview
 
@@ -1270,7 +1725,7 @@ The evaluation scripts use standard SDK patterns (`Anthropic()`, `OpenAI()`) whi
 
 ---
 
-### Step 1: Analyze the Prompt
+### Step 1: Analyze the Prompt and Gather Context
 
 Read the prompt and identify:
 - **Purpose**: What does this prompt help accomplish?
@@ -1278,8 +1733,51 @@ Read the prompt and identify:
 - **Failure modes**: What could go wrong?
 - **Constraints**: What should outputs avoid?
 
+**Detect if domain examples are needed:**
+
+Some optimization tasks require concrete examples of "good" output. The optimizer cannot improve style, tone, or domain-specific quality without seeing what success looks like.
+
+| Task Type | Examples Needed? |
+|-----------|------------------|
+| Style matching / impersonation | Yes - need example outputs in the target style |
+| Brand voice | Yes - need examples of on-brand writing |
+| Domain-specific accuracy | Yes - need correct examples for the domain |
+| General clarity/helpfulness | No - generic rubric usually sufficient |
+
+**If examples are needed, request them:**
+
+> "For this kind of optimization, I need to see what 'good' looks like. Can you share 3-5 examples of ideal outputs?
+>
+> For example:
+> - If this is an impersonation prompt, share messages written by the person being impersonated
+> - If this is brand voice, share approved copy that nails the tone
+> - If this is domain-specific, share correct answers from an expert
+>
+> Without these, the optimizer can only apply generic improvements—it won't know what makes outputs good *for your specific use case*."
+
+**Store examples for use in evaluation:**
+
+```python
+# Include in scenarios.py
+REFERENCE_EXAMPLES = [
+    {
+        "input": "User request that was handled well",
+        "ideal_output": "The actual good response to learn from",
+    },
+    # Add 3-5 examples
+]
+```
+
+These examples can be used as:
+1. Few-shot examples in the judge prompt ("outputs should resemble these examples")
+2. Reference material for the rubric ("does the output match the style of the examples?")
+3. Similarity scoring (how close is the output to the reference style?)
+
+---
+
+**Setup:**
+
 ```bash
-# Setup
 WECO_TASK="prompt-optimization"
 mkdir -p .weco/$WECO_TASK
 cp prompt.txt .weco/$WECO_TASK/optimize.txt
@@ -1389,40 +1887,102 @@ Users can add, remove, or modify dimensions. See `rules/eval-llm-judge.md` for c
 
 ### Step 5: Run Baseline
 
-Execute the prompt against all scenarios and judge outputs:
+Execute the prompt against all scenarios and judge outputs **multiple times** to estimate variance.
+
+**Ask how many runs to use:**
+
+> "Before optimizing, I need to measure how stable the evaluation is. This helps us know if improvements are real or just noise.
+>
+> How many baseline runs would you like?
+> - **3 runs** (Recommended minimum) - Quick, gives rough estimate
+> - **5 runs** - Better confidence in the variance estimate
+> - **10 runs** - High confidence, but costs more
+>
+> More runs = more accurate variance estimate = better ability to detect real improvements."
 
 ```bash
-python .weco/$WECO_TASK/evaluate.py
+# Run baseline N times (minimum 3)
+for i in $(seq 1 $NUM_RUNS); do
+  python .weco/$WECO_TASK/evaluate.py
+done
 ```
 
-**Present baseline dramatically:**
+**Calculate and present standard deviation:**
 
-> "I evaluated your prompt across 15 scenarios.
+```python
+import statistics
+scores = [3.6, 3.8, 3.7, 3.5, 3.9]  # From N runs
+mean = statistics.mean(scores)
+std_dev = statistics.stdev(scores) if len(scores) > 1 else 0
+```
+
+> "I ran the baseline 5 times to measure evaluation stability.
 >
-> **Current score: 3.4/5**
+> **Baseline score: 3.7/5** (std dev: 0.15)
 >
-> That means:
-> - ~30% of responses have notable issues
-> - Clarity scores well (4.2), but grounding is weak (2.8)
-> - Edge cases are particularly problematic (2.1 average)
+> Variance is low — evaluation is stable enough to proceed with optimization."
+
+---
+
+**⚠️ VARIANCE CHECK: Gate before optimization ⚠️**
+
+If standard deviation is high (>0.3 on a 5-point scale), **warn the user and suggest fixes before proceeding:**
+
+> "⚠️ **High evaluation variance detected**
 >
-> Let's see if Weco can improve this."
+> Your baseline scored 3.2, 3.8, and 3.5 across three runs (std dev: 0.3).
+>
+> With this much variance, a +0.3 improvement could just be noise. Before optimizing, I recommend:
+>
+> 1. **Add more scenarios** (currently 8 → try 15-20) to get more stable signal
+> 2. **Add reference examples** if this is style/domain-specific optimization
+> 3. **Review scenarios** for ambiguous cases that might score inconsistently
+>
+> Want to proceed anyway, or address the variance first?"
+
+**Do not proceed without acknowledgment if std dev > 0.3.**
 
 ---
 
 ### Step 6: Split Training and Held-Out Scenarios
 
-**Required: Reserve 20% of scenarios for validation.**
+---
 
-Split scenarios before optimization. Training scenarios go in `evaluate.py` (what Weco sees). Held-out scenarios are saved for final validation only.
+**⚠️ REQUIRED GATE: This is not optional ⚠️**
 
-This prevents overfitting to the rubric. The held-out score is the true measure of improvement.
+You MUST split scenarios before optimization. Do not skip this step.
 
-See `rules/eval-llm-judge.md` for implementation details.
+---
+
+**Reserve 20% of scenarios for validation:**
+
+Split scenarios before optimization. Training scenarios go in `evaluate.py` (what Weco optimizes against). Held-out scenarios are saved for final validation only.
+
+```python
+# This split MUST happen before optimization
+import random
+random.seed(42)
+random.shuffle(ALL_SCENARIOS)
+split = int(len(ALL_SCENARIOS) * 0.8)
+TRAINING = ALL_SCENARIOS[:split]   # Used during optimization
+HOLDOUT = ALL_SCENARIOS[split:]    # Used ONLY for final validation
+```
+
+> "I've split your 15 scenarios:
+> - **12 for training** (what the optimizer sees)
+> - **3 held out** (for validating the improvement is real)
+>
+> This prevents the optimizer from gaming the test—held-out performance is the true measure."
+
+**Do not skip this step.** Without held-out validation, you cannot distinguish real improvement from overfitting.
+
+Read `rules/eval-llm-judge.md` for the splitting and validation implementation.
 
 ---
 
 ### Step 7: Run Optimization
+
+Each optimization step runs a single evaluation across all training scenarios. The baseline variance measurement (Step 5) establishes the noise floor; subsequent evaluations use one run each.
 
 **Start Weco as a background task:**
 
@@ -1444,36 +2004,51 @@ weco run \
 ```
 🔬 Prompt optimization in progress...
 
-Step 1/10: Baseline measured at 3.4/5
-Step 2/10: Added specificity to instructions... 3.7/5 (+0.3)
-Step 3/10: Restructured for clarity... 4.1/5 (+0.4) ← new best
+Step 1/10: Baseline measured at 3.7/5
+Step 2/10: Added specificity to instructions... 3.9/5 (+0.2)
+Step 3/10: Restructured for clarity... 4.1/5 (+0.2) ← new best
 Step 4/10: Added edge case handling... 4.0/5 (slight regression)
 Step 5/10: Refined tone guidance... 4.2/5 ← new best
 ...
 
-✓ Training complete: 3.4 → 4.2/5
+✓ Training complete: 3.7 → 4.2/5
 ```
 
 ---
 
-### Step 8: Validate on Held-Out Scenarios
+### Step 8: Validate on Held-Out and Assess Confidence
 
-**After optimization, run held-out validation:**
+**After optimization, run a single held-out validation:**
 
 ```bash
 python .weco/$WECO_TASK/validate_holdout.py
 ```
 
-**Present both scores:**
+**Compare improvement to measured standard deviation:**
+
+Remember the baseline std dev you measured in Step 5. Compare the improvement magnitude to that std dev:
+
+| Improvement vs Std Dev | Confidence |
+|------------------------|------------|
+| Improvement > 2× std dev | High - likely real |
+| Improvement ≈ 1-2× std dev | Moderate - possibly real |
+| Improvement < std dev | Low - may be noise |
+
+---
+
+**If improvement is statistically significant (improvement > 2× std dev):**
 
 > "🎉 **Optimization complete!**
 >
 > | Metric | Before | After | Change |
 > |--------|--------|-------|--------|
-> | Training scenarios | 3.4 | 4.2 | +23% |
-> | **Held-out scenarios** | 3.2 | 3.9 | **+22%** |
+> | Training scenarios | 3.4 | 4.2 | +0.8 |
+> | **Held-out scenarios** | 3.2 | 3.9 | **+0.7** |
+> | Baseline std dev | ±0.1 | | |
 >
-> The held-out improvement (+22%) confirms the optimization generalizes—it's not just memorizing the test cases.
+> **Statistical confidence: HIGH** ✓
+>
+> The held-out improvement (+0.7) is 7× your baseline std dev (0.1). This improvement is almost certainly real, not noise.
 >
 > **What changed:**
 > - Added explicit grounding instructions
@@ -1482,7 +2057,31 @@ python .weco/$WECO_TASK/validate_holdout.py
 >
 > Would you like me to apply this to your prompt file?"
 
-If held-out improvement is significantly lower than training improvement, warn about overfitting:
+---
+
+**If improvement is within noise range (improvement < 2× std dev):**
+
+> "⚠️ **Improvement may not be statistically significant**
+>
+> | Metric | Before | After | Change |
+> |--------|--------|-------|--------|
+> | Training scenarios | 3.6 | 3.9 | +0.3 |
+> | **Held-out scenarios** | 3.5 | 3.7 | **+0.2** |
+> | Baseline std dev | ±0.2 | | |
+>
+> **Statistical confidence: LOW** ⚠️
+>
+> The held-out improvement (+0.2) is only 1× your baseline std dev (0.2). This could be noise rather than real improvement.
+>
+> **Options:**
+> 1. **Strengthen the signal** - Add more scenarios or reference examples
+> 2. **Run longer** - More optimization steps may find clearer improvements
+> 3. **Accept with caution** - The changes may still be directionally useful
+> 4. **Review changes manually** - Check if the edits make intuitive sense"
+
+---
+
+**If held-out improvement is much lower than training (overfitting):**
 
 > "⚠️ **Potential overfitting detected**
 >
@@ -1491,12 +2090,26 @@ If held-out improvement is significantly lower than training improvement, warn a
 > | Training scenarios | 3.4 | 4.5 | +32% |
 > | **Held-out scenarios** | 3.2 | 3.4 | **+6%** |
 >
-> The held-out improvement (+6%) is much smaller than training (+32%). This suggests the optimization may have overfit to the specific test cases.
+> The held-out improvement (+6%) is much smaller than training (+32%). The optimizer may have gamed the training scenarios.
 >
-> Options:
-> 1. **Accept anyway** - The held-out still improved slightly
-> 2. **Re-run with more scenarios** - Add diversity to prevent overfitting
-> 3. **Review the optimized prompt** - Check if changes make sense"
+> **Options:**
+> 1. **Add scenario diversity** - More varied test cases prevent overfitting
+> 2. **Review the optimized prompt** - Check if changes are superficial
+> 3. **Accept with caution** - Some improvement is better than none"
+
+---
+
+### Step 9: Next Steps
+
+After showing results, offer paths to continue:
+
+> "**What would you like to do next?**
+>
+> 1. **Apply changes** - Use the optimized prompt
+> 2. **Run more steps** - Continue optimizing from here
+> 3. **Add more scenarios** - Improve evaluation coverage
+> 4. **Adjust rubric** - Reweight dimensions that matter most
+> 5. **Discard** - Keep the original prompt"
 
 ---
 
@@ -1561,6 +2174,6 @@ For advanced topics, see the `rules/` directory:
 - `rules/benchmarking.md` - Statistical rigor for timing
 - `rules/ml-evaluation.md` - Avoiding overfitting
 - `rules/gpu-profiling.md` - CUDA timing with events
-- `rules/eval-skill.md` - Evaluating Claude Code skills
+- `rules/eval-skill.md` - Evaluating agent skills (Claude Code, Cursor, etc.)
 - `rules/eval-llm-judge.md` - LLM-as-judge evaluation for prompts
 - `rules/limitations.md` - When NOT to use Weco
