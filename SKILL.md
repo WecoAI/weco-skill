@@ -684,7 +684,7 @@ Every time you check `TaskOutput`, **actively scan for these error patterns**:
 
 **When you see `ModuleNotFoundError` or `ImportError`:**
 
-Your ONLY response is to run: `pip install <package>` or `uv pip install <package>`
+You MUST attempt to install the missing dependency using the appropriate method. ASK THE USER TO CONFIRM INSTALLATION. E.g. for a Python project you might have something like `pip install <package>` or `uv pip install <package>`
 
 Do NOT:
 - Summarize the error and keep monitoring
