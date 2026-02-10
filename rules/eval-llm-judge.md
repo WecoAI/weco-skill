@@ -23,16 +23,20 @@ Use LLM-as-judge evaluation when optimizing:
 
 ## API Key Handling
 
-LLM-as-judge requires API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.).
+LLM-as-judge requires API keys for the chosen provider (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
 
 **The agent must NEVER read, check, display, or handle API keys in any way.** Do not run commands like `echo $ANTHROPIC_API_KEY`, `env | grep KEY`, `printenv`, or read `.env` file contents. Do not ask users to paste keys into the chat. Do not write keys to any files.
 
 The evaluation scripts load from `.env` via `python-dotenv` and the `evaluate.sh` wrapper also sources `.env`. If evaluation fails due to a missing key, tell the user to create a `.env` file:
 
-> "The evaluation requires `ANTHROPIC_API_KEY`. Please add it to a `.env` file in your project root:
+> "The evaluation requires an API key. Please add it to a `.env` file in your project root:
 >
 > ```
+> # For Anthropic (default)
 > ANTHROPIC_API_KEY=your-key-here
+>
+> # For OpenAI
+> OPENAI_API_KEY=your-key-here
 > ```
 >
 > Let me know when it's set up and I'll continue."
@@ -64,7 +68,55 @@ try:
 except ImportError:
     pass
 
-from anthropic import Anthropic
+# =============================================================================
+# PROVIDER CONFIGURATION — set to "anthropic" or "openai"
+# =============================================================================
+PROVIDER = "anthropic"
+
+# Model configuration
+# Anthropic: claude-sonnet-4-5, claude-haiku-4-5, claude-opus-4-6
+# OpenAI:    gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3
+EXECUTION_MODEL = "claude-sonnet-4-5"
+JUDGE_MODEL = "claude-sonnet-4-5"
+
+
+def chat(model, messages, system=None, max_tokens=1024):
+    """Send a chat request to the configured provider."""
+    if PROVIDER == "anthropic":
+        from anthropic import Anthropic
+        client = Anthropic()
+        kwargs = {"model": model, "max_tokens": max_tokens, "messages": messages}
+        if system:
+            kwargs["system"] = system
+        response = client.messages.create(**kwargs)
+        return response.content[0].text
+    elif PROVIDER == "openai":
+        from openai import OpenAI
+        client = OpenAI()
+        full_messages = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        full_messages.extend(messages)
+        response = client.chat.completions.create(
+            model=model, max_tokens=max_tokens, messages=full_messages,
+        )
+        return response.choices[0].message.content
+    else:
+        raise ValueError(f"Unknown provider: {PROVIDER}")
+
+
+def validate_models(*model_ids):
+    """Smoke test model availability before running evaluation."""
+    all_ok = True
+    for model_id in set(model_ids):
+        try:
+            chat(model_id, [{"role": "user", "content": "hi"}], max_tokens=1)
+            print(f"  ok: {model_id}", file=sys.stderr)
+        except Exception as e:
+            print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
+            all_ok = False
+    return all_ok
+
 
 # Resolve paths relative to this script's directory
 SCRIPT_DIR = Path(__file__).parent
@@ -119,55 +171,30 @@ Return ONLY valid JSON:
 }}
 """
 
-# Model configuration - use aliases, not dated snapshot IDs
-EXECUTION_MODEL = "claude-sonnet-4-5"
-JUDGE_MODEL = "claude-sonnet-4-5"
-
-def validate_models(client, *model_ids):
-    """Smoke test model availability before running evaluation."""
-    all_ok = True
-    for model_id in set(model_ids):
-        try:
-            client.messages.create(
-                model=model_id, max_tokens=1,
-                messages=[{"role": "user", "content": "hi"}],
-            )
-            print(f"  ok: {model_id}", file=sys.stderr)
-        except Exception as e:
-            print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
-            all_ok = False
-    return all_ok
-
 def run_with_prompt(prompt, scenario):
     """Execute the prompt being optimized against a scenario."""
-    client = Anthropic()
-    response = client.messages.create(
-        model=EXECUTION_MODEL,
-        max_tokens=1024,
+    return chat(
+        EXECUTION_MODEL,
+        [{"role": "user", "content": scenario["input"]}],
         system=prompt,
-        messages=[{"role": "user", "content": scenario["input"]}],
+        max_tokens=1024,
     )
-    return response.content[0].text
 
 def judge_response(scenario, response):
     """Have a capable LLM judge the response quality."""
-    client = Anthropic()
     judge_input = JUDGE_PROMPT.format(
         expected_behaviors=scenario["expected_behaviors"]
     )
-    result = client.messages.create(
-        model=JUDGE_MODEL,
+    result = chat(
+        JUDGE_MODEL,
+        [{"role": "user", "content": f"{judge_input}\n\n## Response to Evaluate\n\n{response}"}],
         max_tokens=512,
-        messages=[{
-            "role": "user",
-            "content": f"{judge_input}\n\n## Response to Evaluate\n\n{response}"
-        }],
     )
-    return json.loads(result.content[0].text)
+    return json.loads(result)
 
 # Validate models before running scenarios
 print("Validating model availability...", file=sys.stderr)
-if not validate_models(Anthropic(), EXECUTION_MODEL, JUDGE_MODEL):
+if not validate_models(EXECUTION_MODEL, JUDGE_MODEL):
     print("Error: One or more models unavailable. Fix model config.", file=sys.stderr)
     print("prompt_quality: 0.00")
     sys.exit(1)

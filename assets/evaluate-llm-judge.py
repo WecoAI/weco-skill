@@ -8,12 +8,13 @@ Statistical rigor is handled separately:
 IMPORTANT: Weco optimizes a SINGLE metric. This script prints exactly one
 metric in the format: metric_name: value (e.g., "prompt_quality: 4.25")
 
-IMPORTANT: ANTHROPIC_API_KEY must be available via .env file or environment
-variable. The agent must never read, check, or handle API keys directly.
+IMPORTANT: API key (ANTHROPIC_API_KEY or OPENAI_API_KEY) must be available
+via .env file or environment variable. The agent must never read, check,
+or handle API keys directly.
 
 IMPORTANT: Run the environment pre-flight before first use:
 1. Create a venv: python -m venv .venv && source .venv/bin/activate
-2. Install deps: pip install anthropic python-dotenv
+2. Install deps: pip install anthropic python-dotenv  (or: pip install openai python-dotenv)
 3. Verify .env: test -r .env (or ../../.env)
 4. Dry-run: bash evaluate.sh
 See SKILL.md "Environment Pre-flight" for the full checklist.
@@ -30,8 +31,16 @@ except ImportError:
     pass
 
 # =============================================================================
-# CONFIGURATION
+# PROVIDER CONFIGURATION — set to "anthropic" or "openai"
 # =============================================================================
+
+PROVIDER = "anthropic"
+
+# =============================================================================
+# MODEL CONFIGURATION
+# =============================================================================
+# Anthropic: claude-sonnet-4-5, claude-haiku-4-5, claude-opus-4-6
+# OpenAI:    gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3
 
 # Model for executing the prompt being optimized
 EXECUTION_MODEL = "claude-sonnet-4-5"
@@ -44,21 +53,44 @@ ALL_MODELS = list(set([EXECUTION_MODEL, JUDGE_MODEL]))
 
 
 # =============================================================================
+# PROVIDER ABSTRACTION
+# =============================================================================
+
+def chat(model, messages, system=None, max_tokens=1024):
+    """Send a chat request to the configured provider."""
+    if PROVIDER == "anthropic":
+        from anthropic import Anthropic
+        client = Anthropic()
+        kwargs = {"model": model, "max_tokens": max_tokens, "messages": messages}
+        if system:
+            kwargs["system"] = system
+        response = client.messages.create(**kwargs)
+        return response.content[0].text
+    elif PROVIDER == "openai":
+        from openai import OpenAI
+        client = OpenAI()
+        full_messages = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        full_messages.extend(messages)
+        response = client.chat.completions.create(
+            model=model, max_tokens=max_tokens, messages=full_messages,
+        )
+        return response.choices[0].message.content
+    else:
+        raise ValueError(f"Unknown provider: {PROVIDER}")
+
+
+# =============================================================================
 # MODEL VALIDATION
 # =============================================================================
 
 def validate_models():
-    """Smoke test that all configured models are available on this API key."""
-    from anthropic import Anthropic
-    client = Anthropic()
+    """Smoke test that all configured models are available."""
     all_ok = True
     for model_id in ALL_MODELS:
         try:
-            client.messages.create(
-                model=model_id,
-                max_tokens=1,
-                messages=[{"role": "user", "content": "hi"}],
-            )
+            chat(model_id, [{"role": "user", "content": "hi"}], max_tokens=1)
             print(f"  ok: {model_id}", file=sys.stderr)
         except Exception as e:
             print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
@@ -190,44 +222,32 @@ Return ONLY valid JSON (no markdown, no explanation outside JSON):
 
 def run_with_prompt(prompt: str, scenario: dict) -> str:
     """Execute the prompt being optimized against a scenario."""
-    # Using Anthropic - replace with OpenAI if preferred
-    from anthropic import Anthropic
-
-    client = Anthropic()
-    response = client.messages.create(
-        model=EXECUTION_MODEL,
-        max_tokens=2048,
+    return chat(
+        EXECUTION_MODEL,
+        [{"role": "user", "content": scenario["input"]}],
         system=prompt,
-        messages=[{"role": "user", "content": scenario["input"]}],
+        max_tokens=2048,
     )
-    return response.content[0].text
 
 
 def judge_response(scenario: dict, response: str) -> dict:
     """Have a capable LLM judge the response quality."""
-    from anthropic import Anthropic
-
-    client = Anthropic()
-
     judge_input = JUDGE_PROMPT.format(
         expected_behaviors="\n".join(f"- {b}" for b in scenario["expected_behaviors"])
     )
 
-    result = client.messages.create(
-        model=JUDGE_MODEL,
+    result = chat(
+        JUDGE_MODEL,
+        [{"role": "user", "content": f"{judge_input}\n\n## Response to Evaluate\n\n{response}"}],
         max_tokens=512,
-        messages=[{
-            "role": "user",
-            "content": f"{judge_input}\n\n## Response to Evaluate\n\n{response}"
-        }],
     )
 
     # Parse JSON response
     try:
-        return json.loads(result.content[0].text)
+        return json.loads(result)
     except json.JSONDecodeError as e:
         print(f"Warning: Failed to parse judge response: {e}")
-        print(f"Raw response: {result.content[0].text}")
+        print(f"Raw response: {result}")
         # Return neutral score on parse failure
         return {"overall": 3.0, "reasoning": "Parse error"}
 

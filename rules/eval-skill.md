@@ -26,16 +26,20 @@ Use skill evaluation when optimizing:
 
 ### API Key Requirements
 
-Skill evaluation requires `ANTHROPIC_API_KEY` for conversations, simulation, and grading.
+Skill evaluation requires an API key for the chosen provider (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) for conversations, simulation, and grading.
 
 **The agent must NEVER read, check, display, or handle API keys in any way.** Do not run commands like `echo $ANTHROPIC_API_KEY`, `env | grep KEY`, `printenv`, or read `.env` file contents. Do not ask users to paste keys into the chat.
 
 The evaluation scripts load from `.env` via `python-dotenv` and the `evaluate.sh` wrapper also sources `.env`. If evaluation fails due to a missing key, tell the user to create a `.env` file:
 
-> "The evaluation requires `ANTHROPIC_API_KEY`. Please add it to a `.env` file in your project root:
+> "The evaluation requires an API key. Please add it to a `.env` file in your project root:
 >
 > ```
+> # For Anthropic (default)
 > ANTHROPIC_API_KEY=your-key-here
+>
+> # For OpenAI
+> OPENAI_API_KEY=your-key-here
 > ```
 >
 > Let me know when it's set up and I'll continue."
@@ -46,19 +50,17 @@ The agent should never be involved in key setup beyond this message.
 
 ### Skill as System Prompt
 
-The skill content is passed directly as the system prompt in API calls. This simulates how skills work in practice - they're loaded as instructions that guide the agent's behavior.
+The skill content is passed directly as the system prompt in API calls. This simulates how skills work in practice — they're loaded as instructions that guide the agent's behavior.
+
+All template code uses the `chat()` helper (see Provider Abstraction in SKILL.md) so it works with both Anthropic and OpenAI:
 
 ```python
-from anthropic import Anthropic
-
-client = Anthropic()
-
 # The skill IS the system prompt
-response = client.messages.create(
-    model="claude-sonnet-4-5",
-    max_tokens=4096,
+response = chat(
+    model="claude-sonnet-4-5",  # or "gpt-4.1" for OpenAI
+    messages=[{"role": "user", "content": "User's request"}],
     system=skill_content,
-    messages=[{"role": "user", "content": "User's request"}]
+    max_tokens=4096,
 )
 ```
 
@@ -159,6 +161,7 @@ See [assets/evaluate-skill.py](../assets/evaluate-skill.py) for a consolidated s
   optimize.md          # Skill being optimized (weco modifies this)
   baseline.md          # Original skill (reference)
   rules/               # Rules included in system prompt (not optimized)
+  config.py            # Provider selection (anthropic/openai), model IDs, chat() helper
   evaluate.py          # Main evaluation script
   harness.py           # Multi-turn conversation runner
   simulator.py         # User response simulation
@@ -213,18 +216,24 @@ SCENARIOS = [
 
 ### Configuration
 
-Use model aliases (not dated snapshot IDs) so scripts stay current. See the Model Reference in SKILL.md for the full list.
+Set the provider and model IDs at the top. See the Model Reference in SKILL.md for the full list.
 
 ```python
-"""Model configuration for skill evaluation."""
+"""Provider and model configuration for skill evaluation."""
+
+# Set to "anthropic" or "openai"
+PROVIDER = "anthropic"
 
 # Model for running the skill (the "agent under test")
+# Anthropic: claude-sonnet-4-5 | OpenAI: gpt-4.1
 SKILL_MODEL = "claude-sonnet-4-5"
 
 # Model for the user simulator
+# Anthropic: claude-haiku-4-5 | OpenAI: gpt-4.1-mini
 SIMULATOR_MODEL = "claude-haiku-4-5"
 
 # Model for grading transcripts (use a capable model)
+# Anthropic: claude-sonnet-4-5 | OpenAI: gpt-4.1
 JUDGE_MODEL = "claude-sonnet-4-5"
 
 # Maximum turns per scenario
@@ -236,16 +245,12 @@ MAX_TURNS = 10
 **Before running any evaluation**, validate that the configured models are available. Add this to `evaluate.py` and call it before running scenarios:
 
 ```python
-def validate_models(client, *model_ids):
+def validate_models(*model_ids):
     """Smoke test model availability. Call before running evaluation."""
     all_ok = True
-    for model_id in model_ids:
+    for model_id in set(model_ids):
         try:
-            client.messages.create(
-                model=model_id,
-                max_tokens=1,
-                messages=[{"role": "user", "content": "hi"}],
-            )
+            chat(model_id, [{"role": "user", "content": "hi"}], max_tokens=1)
             print(f"  ok: {model_id}", file=sys.stderr)
         except Exception as e:
             print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
@@ -261,15 +266,12 @@ Runs multi-turn conversations with the skill loaded as system prompt.
 
 **Important:** The harness uses an LLM (`needs_user_input()`) to judge whether each turn requires user input or if the task is complete. This enables realistic multi-turn evaluation without hardcoding conversation length.
 
+All API calls go through the `chat()` helper so the harness works with both Anthropic and OpenAI.
+
 ```python
 """Multi-turn conversation harness for skill evaluation."""
 from pathlib import Path
-from anthropic import Anthropic
-
-
-# Model configuration
-SKILL_MODEL = "claude-sonnet-4-5"
-INPUT_CHECK_MODEL = "claude-haiku-4-5"
+from config import chat, SKILL_MODEL, INPUT_CHECK_MODEL
 
 
 def build_system_prompt(skill_content, rules_dir=None):
@@ -289,17 +291,7 @@ def build_system_prompt(skill_content, rules_dir=None):
 
 
 def run_scenario(skill_content, scenario, user_simulator, max_turns=10, rules_dir=None):
-    """Run a single scenario and return the transcript.
-
-    Args:
-        skill_content: The main skill content (SKILL.md)
-        scenario: Scenario definition with initial_message, context_files, etc.
-        user_simulator: UserSimulator instance
-        max_turns: Maximum conversation turns
-        rules_dir: Optional path to rules/ directory. If provided, rules are
-                   included in the system prompt alongside the skill.
-    """
-    client = Anthropic()
+    """Run a single scenario and return the transcript."""
     system_prompt = build_system_prompt(skill_content, rules_dir)
 
     # Build the initial user message, including context files if any
@@ -314,13 +306,7 @@ def run_scenario(skill_content, scenario, user_simulator, max_turns=10, rules_di
     # Start conversation
     messages = [{"role": "user", "content": initial_content}]
 
-    response = client.messages.create(
-        model=SKILL_MODEL,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=messages,
-    )
-    assistant_msg = response.content[0].text
+    assistant_msg = chat(SKILL_MODEL, messages, system=system_prompt, max_tokens=4096)
     messages.append({"role": "assistant", "content": assistant_msg})
 
     transcript = [
@@ -338,13 +324,7 @@ def run_scenario(skill_content, scenario, user_simulator, max_turns=10, rules_di
 
         messages.append({"role": "user", "content": user_reply})
 
-        response = client.messages.create(
-            model=SKILL_MODEL,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=messages,
-        )
-        assistant_msg = response.content[0].text
+        assistant_msg = chat(SKILL_MODEL, messages, system=system_prompt, max_tokens=4096)
         messages.append({"role": "assistant", "content": assistant_msg})
 
         transcript.append({"role": "user", "content": user_reply})
@@ -355,23 +335,12 @@ def run_scenario(skill_content, scenario, user_simulator, max_turns=10, rules_di
 
 
 def needs_user_input(transcript):
-    """Use an LLM to judge whether the conversation needs user input.
-
-    Analyzes the transcript and determines:
-    - WAITING: Assistant asked a question or is waiting for user response
-    - DONE: Task is complete, or assistant is working without needing input
-
-    Returns True if user input is needed, False otherwise.
-    """
-    client = Anthropic()
+    """Use an LLM to judge whether the conversation needs user input."""
     transcript_text = format_transcript(transcript)
 
-    response = client.messages.create(
-        model=INPUT_CHECK_MODEL,
-        max_tokens=16,
-        messages=[{
-            "role": "user",
-            "content": f"""Analyze this conversation between a user and an AI assistant.
+    response = chat(
+        INPUT_CHECK_MODEL,
+        [{"role": "user", "content": f"""Analyze this conversation between a user and an AI assistant.
 
 Determine if the assistant is:
 1. WAITING for user input (asked a question, requested confirmation, needs information)
@@ -380,11 +349,11 @@ Determine if the assistant is:
 Conversation:
 {transcript_text}
 
-Reply with exactly one word: WAITING or DONE"""
-        }],
+Reply with exactly one word: WAITING or DONE"""}],
+        max_tokens=16,
     )
 
-    return "WAITING" in response.content[0].text
+    return "WAITING" in response
 
 
 def format_transcript(transcript):
@@ -400,24 +369,17 @@ Generates realistic user responses using the API:
 
 ```python
 """User simulator for multi-turn conversations."""
-from anthropic import Anthropic
-
-
-SIMULATOR_MODEL = "claude-haiku-4-5"
+from config import chat, SIMULATOR_MODEL
 
 
 class UserSimulator:
     def respond(self, transcript, instructions):
         """Generate a user response."""
-        client = Anthropic()
         transcript_text = self._format_transcript(transcript)
 
-        response = client.messages.create(
-            model=SIMULATOR_MODEL,
-            max_tokens=512,
-            messages=[{
-                "role": "user",
-                "content": f"""You are simulating a user interacting with an AI assistant.
+        return chat(
+            SIMULATOR_MODEL,
+            [{"role": "user", "content": f"""You are simulating a user interacting with an AI assistant.
 
 Instructions for how to behave:
 {instructions}
@@ -425,11 +387,9 @@ Instructions for how to behave:
 The conversation so far:
 {transcript_text}
 
-Generate the next user response. Be concise and natural. Output ONLY the response, nothing else."""
-            }],
+Generate the next user response. Be concise and natural. Output ONLY the response, nothing else."""}],
+            max_tokens=512,
         )
-
-        return response.content[0].text
 
     def _format_transcript(self, transcript):
         return "\n\n".join(
@@ -445,28 +405,20 @@ Evaluates transcripts against expected behaviors:
 ```python
 """Transcript grader for skill evaluation."""
 import json
-from anthropic import Anthropic
-
-
-JUDGE_MODEL = "claude-sonnet-4-5"
+from config import chat, JUDGE_MODEL
 
 
 def grade_transcript(transcript, expected_behaviors):
     """Grade a transcript against expected behaviors. Returns 1-5."""
-    client = Anthropic()
-
     behaviors_list = "\n".join(f"- {b}" for b in expected_behaviors)
     transcript_text = "\n\n".join(
         f"{msg['role'].upper()}: {msg['content']}"
         for msg in transcript
     )
 
-    response = client.messages.create(
-        model=JUDGE_MODEL,
-        max_tokens=1024,
-        messages=[{
-            "role": "user",
-            "content": f"""Evaluate this conversation transcript against expected behaviors.
+    text = chat(
+        JUDGE_MODEL,
+        [{"role": "user", "content": f"""Evaluate this conversation transcript against expected behaviors.
 
 EXPECTED BEHAVIORS:
 {behaviors_list}
@@ -489,11 +441,9 @@ Output your analysis as JSON:
     {{"behavior": "<behavior text>", "present": true/false, "evidence": "<quote or explanation>"}}
   ],
   "overall": <1-5>
-}}"""
-        }],
+}}"""}],
+        max_tokens=1024,
     )
-
-    text = response.content[0].text
 
     # Try JSON parsing first
     try:
@@ -515,25 +465,20 @@ Output your analysis as JSON:
     return 3
 ```
 
-### evaluate.py
+### config.py
 
-Main orchestrator that Weco invokes. Runs a **single evaluation** per step.
+Provider abstraction and model configuration. All other modules import from here.
 
 ```python
-"""Skill evaluation - run scenarios and grade transcripts.
+"""Provider and model configuration for skill evaluation.
 
-This runs a single evaluation. Weco calls this once per optimization step.
-Statistical rigor is handled by:
-1. Baseline variance measurement (before optimization)
-2. Progressive held-out validation (after optimization)
+Set PROVIDER to "anthropic" or "openai" to switch providers.
+All modules import chat() and model constants from this file.
 
-IMPORTANT: ANTHROPIC_API_KEY must be available via .env file or environment
-variable. The agent must never read, check, or handle API keys directly.
+IMPORTANT: API keys must be available via .env file or environment variable.
+The agent must never read, check, or handle API keys directly.
 """
 import sys
-import json
-from pathlib import Path
-from datetime import datetime
 
 # Load API keys from .env file if present
 try:
@@ -542,27 +487,77 @@ try:
 except ImportError:
     pass
 
-from anthropic import Anthropic
-from harness import run_scenario, SKILL_MODEL, INPUT_CHECK_MODEL
-from simulator import UserSimulator, SIMULATOR_MODEL
-from grader import grade_transcript, JUDGE_MODEL
-from scenarios import TRAINING_SCENARIOS  # Only training scenarios during optimization
+
+# =============================================================================
+# PROVIDER — set to "anthropic" or "openai"
+# =============================================================================
+PROVIDER = "anthropic"
+
+# Model configuration
+# Anthropic: claude-sonnet-4-5, claude-haiku-4-5, claude-opus-4-6
+# OpenAI:    gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3
+SKILL_MODEL = "claude-sonnet-4-5"
+SIMULATOR_MODEL = "claude-haiku-4-5"
+INPUT_CHECK_MODEL = "claude-haiku-4-5"
+JUDGE_MODEL = "claude-sonnet-4-5"
+
+MAX_TURNS = 10
 
 
-def validate_models(client, *model_ids):
+def chat(model, messages, system=None, max_tokens=1024):
+    """Send a chat request to the configured provider."""
+    if PROVIDER == "anthropic":
+        from anthropic import Anthropic
+        client = Anthropic()
+        kwargs = {"model": model, "max_tokens": max_tokens, "messages": messages}
+        if system:
+            kwargs["system"] = system
+        response = client.messages.create(**kwargs)
+        return response.content[0].text
+    elif PROVIDER == "openai":
+        from openai import OpenAI
+        client = OpenAI()
+        full_messages = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        full_messages.extend(messages)
+        response = client.chat.completions.create(
+            model=model, max_tokens=max_tokens, messages=full_messages,
+        )
+        return response.choices[0].message.content
+    else:
+        raise ValueError(f"Unknown provider: {PROVIDER}")
+
+
+def validate_models(*model_ids):
     """Smoke test model availability before running evaluation."""
     all_ok = True
     for model_id in set(model_ids):
         try:
-            client.messages.create(
-                model=model_id, max_tokens=1,
-                messages=[{"role": "user", "content": "hi"}],
-            )
+            chat(model_id, [{"role": "user", "content": "hi"}], max_tokens=1)
             print(f"  ok: {model_id}", file=sys.stderr)
         except Exception as e:
             print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
             all_ok = False
     return all_ok
+```
+
+### evaluate.py
+
+Main orchestrator that Weco invokes. Runs a **single evaluation** per step.
+
+```python
+"""Skill evaluation - run scenarios and grade transcripts."""
+import sys
+import json
+from pathlib import Path
+from datetime import datetime
+
+from config import validate_models, SKILL_MODEL, SIMULATOR_MODEL, INPUT_CHECK_MODEL, JUDGE_MODEL
+from harness import run_scenario
+from simulator import UserSimulator
+from grader import grade_transcript
+from scenarios import TRAINING_SCENARIOS  # Only training scenarios during optimization
 
 
 def save_transcript(transcript, scenario_name, score, transcripts_dir):
@@ -594,9 +589,7 @@ def main():
 
     # Validate models before running scenarios
     print("Validating model availability...", file=sys.stderr)
-    if not validate_models(
-        Anthropic(), SKILL_MODEL, SIMULATOR_MODEL, INPUT_CHECK_MODEL, JUDGE_MODEL
-    ):
+    if not validate_models(SKILL_MODEL, SIMULATOR_MODEL, INPUT_CHECK_MODEL, JUDGE_MODEL):
         print("Error: One or more models unavailable. Fix model config.", file=sys.stderr)
         print("skill_quality: 0.00")
         sys.exit(1)

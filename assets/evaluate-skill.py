@@ -8,18 +8,18 @@ Statistical rigor is handled separately:
 IMPORTANT: Weco optimizes a SINGLE metric. This script prints exactly one
 metric in the format: metric_name: value (e.g., "skill_quality: 4.25")
 
-IMPORTANT: ANTHROPIC_API_KEY must be available via .env file or environment
-variable. The agent must never read, check, or handle API keys directly.
+IMPORTANT: API key (ANTHROPIC_API_KEY or OPENAI_API_KEY) must be available
+via .env file or environment variable. The agent must never read, check,
+or handle API keys directly.
 
 IMPORTANT: Run the environment pre-flight before first use:
 1. Create a venv: python -m venv .venv && source .venv/bin/activate
-2. Install deps: pip install anthropic python-dotenv
+2. Install deps: pip install anthropic python-dotenv  (or: pip install openai python-dotenv)
 3. Verify .env: test -r .env (or ../../.env)
 4. Dry-run: bash evaluate.sh
 See SKILL.md "Environment Pre-flight" for the full checklist.
 """
 import json
-import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -31,12 +31,18 @@ try:
 except ImportError:
     pass
 
-from anthropic import Anthropic
-
 
 # =============================================================================
-# CONFIGURATION
+# PROVIDER CONFIGURATION — set to "anthropic" or "openai"
 # =============================================================================
+
+PROVIDER = "anthropic"
+
+# =============================================================================
+# MODEL CONFIGURATION
+# =============================================================================
+# Anthropic: claude-sonnet-4-5, claude-haiku-4-5, claude-opus-4-6
+# OpenAI:    gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3
 
 # Model for running the skill (the "agent under test")
 SKILL_MODEL = "claude-sonnet-4-5"
@@ -58,20 +64,44 @@ ALL_MODELS = list(set([SKILL_MODEL, SIMULATOR_MODEL, INPUT_CHECK_MODEL, JUDGE_MO
 
 
 # =============================================================================
+# PROVIDER ABSTRACTION
+# =============================================================================
+
+def chat(model, messages, system=None, max_tokens=1024):
+    """Send a chat request to the configured provider."""
+    if PROVIDER == "anthropic":
+        from anthropic import Anthropic
+        client = Anthropic()
+        kwargs = {"model": model, "max_tokens": max_tokens, "messages": messages}
+        if system:
+            kwargs["system"] = system
+        response = client.messages.create(**kwargs)
+        return response.content[0].text
+    elif PROVIDER == "openai":
+        from openai import OpenAI
+        client = OpenAI()
+        full_messages = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        full_messages.extend(messages)
+        response = client.chat.completions.create(
+            model=model, max_tokens=max_tokens, messages=full_messages,
+        )
+        return response.choices[0].message.content
+    else:
+        raise ValueError(f"Unknown provider: {PROVIDER}")
+
+
+# =============================================================================
 # MODEL VALIDATION
 # =============================================================================
 
 def validate_models():
-    """Smoke test that all configured models are available on this API key."""
-    client = Anthropic()
+    """Smoke test that all configured models are available."""
     all_ok = True
     for model_id in ALL_MODELS:
         try:
-            client.messages.create(
-                model=model_id,
-                max_tokens=1,
-                messages=[{"role": "user", "content": "hi"}],
-            )
+            chat(model_id, [{"role": "user", "content": "hi"}], max_tokens=1)
             print(f"  ok: {model_id}", file=sys.stderr)
         except Exception as e:
             print(f"  FAILED: {model_id} - {e}", file=sys.stderr)
@@ -179,7 +209,6 @@ TRAINING_SCENARIOS = [
 
 def run_scenario(skill_content, scenario, max_turns=MAX_TURNS):
     """Run a single multi-turn scenario and return the transcript."""
-    client = Anthropic()
     system_prompt = build_system_prompt(skill_content, RULES_DIR)
 
     # Build the initial user message, including context files if any
@@ -194,13 +223,7 @@ def run_scenario(skill_content, scenario, max_turns=MAX_TURNS):
     # Start conversation
     messages = [{"role": "user", "content": initial_content}]
 
-    response = client.messages.create(
-        model=SKILL_MODEL,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=messages,
-    )
-    assistant_msg = response.content[0].text
+    assistant_msg = chat(SKILL_MODEL, messages, system=system_prompt, max_tokens=4096)
     messages.append({"role": "assistant", "content": assistant_msg})
 
     transcript = [
@@ -215,13 +238,7 @@ def run_scenario(skill_content, scenario, max_turns=MAX_TURNS):
 
         messages.append({"role": "user", "content": user_reply})
 
-        response = client.messages.create(
-            model=SKILL_MODEL,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=messages,
-        )
-        assistant_msg = response.content[0].text
+        assistant_msg = chat(SKILL_MODEL, messages, system=system_prompt, max_tokens=4096)
         messages.append({"role": "assistant", "content": assistant_msg})
 
         transcript.append({"role": "user", "content": user_reply})
@@ -236,15 +253,11 @@ def needs_user_input(transcript):
 
     Returns True if the assistant is waiting for a response, False if done.
     """
-    client = Anthropic()
     transcript_text = format_transcript(transcript)
 
-    response = client.messages.create(
-        model=INPUT_CHECK_MODEL,
-        max_tokens=16,
-        messages=[{
-            "role": "user",
-            "content": f"""Analyze this conversation between a user and an AI assistant.
+    response = chat(
+        INPUT_CHECK_MODEL,
+        [{"role": "user", "content": f"""Analyze this conversation between a user and an AI assistant.
 
 Determine if the assistant is:
 1. WAITING for user input (asked a question, requested confirmation, needs information)
@@ -253,11 +266,11 @@ Determine if the assistant is:
 Conversation:
 {transcript_text}
 
-Reply with exactly one word: WAITING or DONE"""
-        }],
+Reply with exactly one word: WAITING or DONE"""}],
+        max_tokens=16,
     )
 
-    return "WAITING" in response.content[0].text
+    return "WAITING" in response
 
 
 # =============================================================================
@@ -266,15 +279,11 @@ Reply with exactly one word: WAITING or DONE"""
 
 def simulate_user(transcript, instructions):
     """Generate a simulated user response."""
-    client = Anthropic()
     transcript_text = format_transcript(transcript)
 
-    response = client.messages.create(
-        model=SIMULATOR_MODEL,
-        max_tokens=512,
-        messages=[{
-            "role": "user",
-            "content": f"""You are simulating a user interacting with an AI assistant.
+    return chat(
+        SIMULATOR_MODEL,
+        [{"role": "user", "content": f"""You are simulating a user interacting with an AI assistant.
 
 Instructions for how to behave:
 {instructions}
@@ -282,11 +291,9 @@ Instructions for how to behave:
 The conversation so far:
 {transcript_text}
 
-Generate the next user response. Be concise and natural. Output ONLY the response, nothing else."""
-        }],
+Generate the next user response. Be concise and natural. Output ONLY the response, nothing else."""}],
+        max_tokens=512,
     )
-
-    return response.content[0].text
 
 
 # =============================================================================
@@ -321,24 +328,17 @@ Output your analysis as JSON:
 
 def grade_transcript(transcript, expected_behaviors):
     """Grade a transcript against expected behaviors. Returns 1-5."""
-    client = Anthropic()
-
     behaviors_list = "\n".join(f"- {b}" for b in expected_behaviors)
     transcript_text = format_transcript(transcript)
 
-    response = client.messages.create(
-        model=JUDGE_MODEL,
+    text = chat(
+        JUDGE_MODEL,
+        [{"role": "user", "content": GRADER_PROMPT.format(
+            behaviors_list=behaviors_list,
+            transcript_text=transcript_text,
+        )}],
         max_tokens=1024,
-        messages=[{
-            "role": "user",
-            "content": GRADER_PROMPT.format(
-                behaviors_list=behaviors_list,
-                transcript_text=transcript_text,
-            )
-        }],
     )
-
-    text = response.content[0].text
 
     # Try JSON parsing first
     try:
