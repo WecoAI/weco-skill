@@ -88,28 +88,28 @@ response = client.messages.create(
 messages.append({"role": "assistant", "content": response.content[0].text})
 ```
 
-### Including Rules
+### Including References
 
-Skills often reference rules in a `rules/` directory. Include rule content in the system prompt alongside the skill so the model can reference it during evaluation:
+Skills often reference additional documentation in a `references/` directory. Include reference content in the system prompt alongside the skill so the model can reference it during evaluation:
 
 ```python
-def build_system_prompt(skill_content, rules_dir=None):
-    """Build system prompt from skill content and optional rules."""
+def build_system_prompt(skill_content, references_dir=None):
+    """Build system prompt from skill content and optional references."""
     system = skill_content
 
-    if rules_dir and Path(rules_dir).exists():
-        rules_content = []
-        for rule_file in sorted(Path(rules_dir).glob("*.md")):
-            rules_content.append(
-                f"\n\n---\n## Rule: {rule_file.stem}\n\n{rule_file.read_text()}"
+    if references_dir and Path(references_dir).exists():
+        ref_content = []
+        for ref_file in sorted(Path(references_dir).glob("*.md")):
+            ref_content.append(
+                f"\n\n---\n## Reference: {ref_file.stem}\n\n{ref_file.read_text()}"
             )
-        if rules_content:
-            system += "\n\n# Referenced Rules" + "".join(rules_content)
+        if ref_content:
+            system += "\n\n# References" + "".join(ref_content)
 
     return system
 ```
 
-**Important:** Only the skill file (`optimize.md`) is optimized. Rules are reference material included in the system prompt, but they are not modified by Weco.
+**Important:** Only the skill file (`optimize.md`) is optimized. References are included in the system prompt, but they are not modified by Weco.
 
 ### Output Format
 
@@ -119,17 +119,17 @@ Print the final score in weco format:
 skill_quality: 4.25
 ```
 
-## Handling Skills with Rules
+## Handling Skills with References
 
-Copy rules so they're available during evaluation:
+Copy references so they're available during evaluation:
 
 ```bash
 # Copy the skill (this is what Weco will optimize)
 cp SKILL.md .weco/task/optimize.md
 cp SKILL.md .weco/task/baseline.md
 
-# Copy rules so they're included in the system prompt during evaluation
-cp -r rules/ .weco/task/rules/
+# Copy references so they're included in the system prompt during evaluation
+cp -r references/ .weco/task/references/
 ```
 
 ### Full Workflow
@@ -139,7 +139,7 @@ cp -r rules/ .weco/task/rules/
 mkdir -p .weco/task
 cp SKILL.md .weco/task/optimize.md
 cp SKILL.md .weco/task/baseline.md
-cp -r rules/ .weco/task/rules/
+cp -r references/ .weco/task/references/
 
 # 2. Run weco optimization (only optimizes optimize.md)
 weco run --source .weco/task/optimize.md --eval-command "bash .weco/task/evaluate.sh" --metric skill_quality --goal maximize
@@ -160,7 +160,7 @@ See [assets/evaluate-skill.py](../assets/evaluate-skill.py) for a consolidated s
 .weco/<task>/
   optimize.md          # Skill being optimized (weco modifies this)
   baseline.md          # Original skill (reference)
-  rules/               # Rules included in system prompt (not optimized)
+  references/          # References included in system prompt (not optimized)
   config.py            # Provider selection (anthropic/openai), model IDs, chat() helper
   evaluate.py          # Main evaluation script
   harness.py           # Multi-turn conversation runner
@@ -274,25 +274,25 @@ from pathlib import Path
 from config import chat, SKILL_MODEL, INPUT_CHECK_MODEL
 
 
-def build_system_prompt(skill_content, rules_dir=None):
-    """Build system prompt from skill content and optional rules."""
+def build_system_prompt(skill_content, references_dir=None):
+    """Build system prompt from skill content and optional references."""
     system = skill_content
 
-    if rules_dir and Path(rules_dir).exists():
-        rules_content = []
-        for rule_file in sorted(Path(rules_dir).glob("*.md")):
-            rules_content.append(
-                f"\n\n---\n## Rule: {rule_file.stem}\n\n{rule_file.read_text()}"
+    if references_dir and Path(references_dir).exists():
+        ref_content = []
+        for ref_file in sorted(Path(references_dir).glob("*.md")):
+            ref_content.append(
+                f"\n\n---\n## Reference: {ref_file.stem}\n\n{ref_file.read_text()}"
             )
-        if rules_content:
-            system += "\n\n# Referenced Rules" + "".join(rules_content)
+        if ref_content:
+            system += "\n\n# References" + "".join(ref_content)
 
     return system
 
 
-def run_scenario(skill_content, scenario, user_simulator, max_turns=10, rules_dir=None):
+def run_scenario(skill_content, scenario, user_simulator, max_turns=10, references_dir=None):
     """Run a single scenario and return the transcript."""
-    system_prompt = build_system_prompt(skill_content, rules_dir)
+    system_prompt = build_system_prompt(skill_content, references_dir)
 
     # Build the initial user message, including context files if any
     initial_content = scenario["initial_message"]
@@ -594,10 +594,10 @@ def main():
         print("skill_quality: 0.00")
         sys.exit(1)
 
-    # Check for rules directory alongside the skill
-    rules_dir = skill_path.parent / "rules"
-    if not rules_dir.exists():
-        rules_dir = None
+    # Check for references directory alongside the skill
+    references_dir = skill_path.parent / "references"
+    if not references_dir.exists():
+        references_dir = None
 
     transcripts_dir = skill_path.parent / "transcripts"
     simulator = UserSimulator()
@@ -609,7 +609,7 @@ def main():
         try:
             transcript = run_scenario(
                 skill_content, scenario, simulator,
-                rules_dir=rules_dir
+                references_dir=references_dir
             )
             score = grade_transcript(transcript, scenario["expected_behaviors"])
 
@@ -990,9 +990,9 @@ def measure_baseline(skill_path, scenarios, runs=3):
         raise ValueError("Need at least 3 runs for reliable std dev")
 
     skill_content = Path(skill_path).read_text()
-    rules_dir = Path(skill_path).parent / "rules"
-    if not rules_dir.exists():
-        rules_dir = None
+    references_dir = Path(skill_path).parent / "references"
+    if not references_dir.exists():
+        references_dir = None
 
     simulator = UserSimulator()
 
@@ -1004,7 +1004,7 @@ def measure_baseline(skill_path, scenarios, runs=3):
         for scenario in scenarios:
             transcript = run_scenario(
                 skill_content, scenario, simulator,
-                rules_dir=rules_dir
+                references_dir=references_dir
             )
             score = grade_transcript(transcript, scenario["expected_behaviors"])
             scenario_scores.append(score)
@@ -1098,13 +1098,13 @@ from grader import grade_transcript
 from scenarios import HOLDOUT_SCENARIOS
 
 
-def run_single_evaluation(skill_content, scenarios, simulator, rules_dir=None):
+def run_single_evaluation(skill_content, scenarios, simulator, references_dir=None):
     """Run one complete evaluation across all scenarios."""
     scores = []
     for scenario in scenarios:
         transcript = run_scenario(
             skill_content, scenario, simulator,
-            rules_dir=rules_dir
+            references_dir=references_dir
         )
         score = grade_transcript(transcript, scenario["expected_behaviors"])
         scores.append(score)
@@ -1120,9 +1120,9 @@ def validate_holdout(baseline_stats, optimized_path, scenarios):
         scenarios: Held-out scenarios
     """
     skill_content = Path(optimized_path).read_text()
-    rules_dir = Path(optimized_path).parent / "rules"
-    if not rules_dir.exists():
-        rules_dir = None
+    references_dir = Path(optimized_path).parent / "references"
+    if not references_dir.exists():
+        references_dir = None
 
     simulator = UserSimulator()
 
@@ -1133,7 +1133,7 @@ def validate_holdout(baseline_stats, optimized_path, scenarios):
     # Single evaluation on held-out
     print("Running held-out evaluation...")
     score = run_single_evaluation(
-        skill_content, scenarios, simulator, rules_dir=rules_dir
+        skill_content, scenarios, simulator, references_dir=references_dir
     )
     print(f"  Score: {score:.2f}")
 
@@ -1190,7 +1190,7 @@ The baseline runs establish variance. Each subsequent evaluation (optimization s
 mkdir -p .weco/task
 cp SKILL.md .weco/task/optimize.md
 cp SKILL.md .weco/task/baseline.md
-cp -r rules/ .weco/task/rules/
+cp -r references/ .weco/task/references/
 
 # 2. Measure baseline (ask user: 3 or 5 runs?)
 python measure_baseline.py .weco/task/baseline.md

@@ -14,11 +14,33 @@ This skill teaches your AI coding assistant how to use [Weco](https://weco.ai) f
 
 ## Installation
 
+### Recommended: Weco CLI
+
+The easiest way to install is via the [Weco CLI](https://weco.ai/docs/cli), which sets up the skill and trigger rules for your agent:
+
+```bash
+pip install weco
+weco install cursor   # For Cursor
+weco install claude   # For Claude Code
+```
+
+### Quick install: npx
+
+Install the skill using the Agent Skills CLI:
+
+```bash
+npx skills add weco-ai/weco-skill
+```
+
+This installs the skill directory (SKILL.md, CLAUDE.md, references, assets). For Cursor, this relies on the skill description for activation — for the always-on trigger rule, use `weco install cursor` instead.
+
+### Manual install: install.sh
+
 ```bash
 ./install.sh
 ```
 
-The installer will ask which AI assistant you use (Claude Code, Cursor, or both) and set up the skill accordingly.
+The installer will ask which AI assistant you use (Claude Code, Cursor, or both) and set up the skill with trigger rules accordingly.
 
 ### What Gets Installed
 
@@ -27,7 +49,7 @@ The installer will ask which AI assistant you use (Claude Code, Cursor, or both)
 ~/.claude/skills/weco/
 ├── CLAUDE.md          # Trigger snippet (Claude reads this)
 ├── SKILL.md           # Full optimization workflow
-├── rules/             # Advanced documentation
+├── references/        # Advanced documentation
 │   ├── benchmarking.md
 │   ├── ml-evaluation.md
 │   └── ...
@@ -37,34 +59,16 @@ The installer will ask which AI assistant you use (Claude Code, Cursor, or both)
     └── ...
 ```
 
-**Cursor:**
+**Cursor (via `weco install cursor` or `install.sh`):**
 ```
 ~/.cursor/
 ├── rules/
-│   └── weco.mdc           # Trigger snippet (Cursor reads .mdc files)
+│   └── weco.mdc           # Always-on trigger rule
 └── skills/
     └── weco/
         ├── SKILL.md       # Full optimization workflow
-        ├── rules/         # Advanced documentation
+        ├── references/    # Advanced documentation
         └── assets/        # Template evaluation scripts
-```
-
-### Manual Installation
-
-**Claude Code:**
-```bash
-mkdir -p ~/.claude/skills/weco
-cp SKILL.md snippets/claude.md ~/.claude/skills/weco/
-mv ~/.claude/skills/weco/claude.md ~/.claude/skills/weco/CLAUDE.md
-cp -r rules assets ~/.claude/skills/weco/
-```
-
-**Cursor:**
-```bash
-mkdir -p ~/.cursor/skills/weco ~/.cursor/rules
-cp snippets/cursor.md ~/.cursor/rules/weco.mdc
-cp SKILL.md ~/.cursor/skills/weco/
-cp -r rules assets ~/.cursor/skills/weco/
 ```
 
 ## Usage
@@ -91,12 +95,14 @@ The skill offers two modes:
 ```
 weco-skill/
 ├── SKILL.md              # Full skill instructions (source of truth)
+├── CLAUDE.md             # Trigger snippet for Claude Code (ships with skill)
 ├── install.sh            # Interactive installer
 ├── README.md             # This file
-├── snippets/
-│   ├── claude.md         # Trigger snippet for Claude Code
-│   └── cursor.md         # Trigger snippet for Cursor
-├── rules/                # Advanced documentation
+├── snippets/             # Trigger snippets (used by weco-cli installer)
+│   ├── claude.md         # Claude Code trigger
+│   ├── claude-global.md  # Claude Code global trigger
+│   └── cursor.md         # Cursor trigger (.mdc rule)
+├── references/           # Advanced documentation
 │   ├── benchmarking.md
 │   ├── ml-evaluation.md
 │   ├── gpu-profiling.md

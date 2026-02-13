@@ -128,27 +128,27 @@ optimized = load_artifact(SCRIPT_DIR / "optimize.md")
 
 
 # =============================================================================
-# RULES (optional - included in system prompt alongside the skill)
+# REFERENCES (optional - included in system prompt alongside the skill)
 # =============================================================================
 
-def build_system_prompt(skill_content, rules_dir=None):
-    """Build system prompt from skill content and optional rules."""
+def build_system_prompt(skill_content, references_dir=None):
+    """Build system prompt from skill content and optional references."""
     system = skill_content
 
-    if rules_dir and Path(rules_dir).exists():
-        rules_content = []
-        for rule_file in sorted(Path(rules_dir).glob("*.md")):
-            rules_content.append(
-                f"\n\n---\n## Rule: {rule_file.stem}\n\n{rule_file.read_text()}"
+    if references_dir and Path(references_dir).exists():
+        ref_content = []
+        for ref_file in sorted(Path(references_dir).glob("*.md")):
+            ref_content.append(
+                f"\n\n---\n## Reference: {ref_file.stem}\n\n{ref_file.read_text()}"
             )
-        if rules_content:
-            system += "\n\n# Referenced Rules" + "".join(rules_content)
+        if ref_content:
+            system += "\n\n# References" + "".join(ref_content)
 
     return system
 
 
-# Path to rules directory (set to None if no rules)
-RULES_DIR = SCRIPT_DIR / "rules" if (SCRIPT_DIR / "rules").exists() else None
+# Path to references directory (set to None if no references)
+REFERENCES_DIR = SCRIPT_DIR / "references" if (SCRIPT_DIR / "references").exists() else None
 
 
 # =============================================================================
@@ -209,7 +209,7 @@ TRAINING_SCENARIOS = [
 
 def run_scenario(skill_content, scenario, max_turns=MAX_TURNS):
     """Run a single multi-turn scenario and return the transcript."""
-    system_prompt = build_system_prompt(skill_content, RULES_DIR)
+    system_prompt = build_system_prompt(skill_content, REFERENCES_DIR)
 
     # Build the initial user message, including context files if any
     initial_content = scenario["initial_message"]

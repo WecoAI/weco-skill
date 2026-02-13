@@ -85,7 +85,7 @@ chmod +x .weco/evaluate.sh
 ## Step 5: Create the evaluation script
 
 Choose the appropriate template based on your metric:
-- Speed: [rules/eval-speed.md](eval-speed.md)
-- Accuracy: [rules/eval-accuracy.md](eval-accuracy.md)
-- Loss: [rules/eval-loss.md](eval-loss.md)
-- Training time: [rules/eval-training-time.md](eval-training-time.md)
+- Speed: [references/eval-speed.md](eval-speed.md)
+- Accuracy: [references/eval-accuracy.md](eval-accuracy.md)
+- Loss: [references/eval-loss.md](eval-loss.md)
+- Training time: [references/eval-training-time.md](eval-training-time.md)

@@ -13,4 +13,3 @@ Weco systematically explores code variants, tests them against your evaluation, 
 **Weco works with:** Any language, any hardware, any computable metric. Supports single-file (`--source`) and multi-file (`--sources`) optimization.
 
 **Do NOT use Weco for:** Style/readability improvements (no metric), adding new features, refactoring without a performance goal.
-

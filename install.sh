@@ -46,10 +46,10 @@ install_claude() {
     cp "$SCRIPT_DIR/snippets/claude.md" "$dest_dir/CLAUDE.md"
     echo -e "  ${GREEN}✓${NC} Installed CLAUDE.md"
 
-    # Copy rules directory if it exists
-    if [[ -d "$SCRIPT_DIR/rules" ]]; then
-        cp -r "$SCRIPT_DIR/rules" "$dest_dir/"
-        echo -e "  ${GREEN}✓${NC} Installed rules/"
+    # Copy references directory if it exists
+    if [[ -d "$SCRIPT_DIR/references" ]]; then
+        cp -r "$SCRIPT_DIR/references" "$dest_dir/"
+        echo -e "  ${GREEN}✓${NC} Installed references/"
     fi
 
     # Copy assets directory if it exists
@@ -64,16 +64,16 @@ install_claude() {
 
 install_cursor() {
     local skills_dir="$HOME/.cursor/skills/weco"
-    local rules_dir="$HOME/.cursor/rules"
-    local trigger_file="$rules_dir/weco.mdc"
+    local cursor_rules_dir="$HOME/.cursor/rules"
+    local trigger_file="$cursor_rules_dir/weco.mdc"
 
     echo -e "${BLUE}Installing for Cursor...${NC}"
 
     # Create directories
     mkdir -p "$skills_dir"
-    mkdir -p "$rules_dir"
+    mkdir -p "$cursor_rules_dir"
 
-    # Copy trigger file to rules directory (as .mdc)
+    # Copy trigger file to Cursor rules directory (as .mdc)
     cp "$SCRIPT_DIR/snippets/cursor.md" "$trigger_file"
     echo -e "  ${GREEN}✓${NC} Installed trigger to $trigger_file"
 
@@ -81,10 +81,10 @@ install_cursor() {
     cp "$SKILL_FILE" "$skills_dir/SKILL.md"
     echo -e "  ${GREEN}✓${NC} Installed SKILL.md"
 
-    # Copy rules directory if it exists
-    if [[ -d "$SCRIPT_DIR/rules" ]]; then
-        cp -r "$SCRIPT_DIR/rules" "$skills_dir/"
-        echo -e "  ${GREEN}✓${NC} Installed rules/"
+    # Copy references directory if it exists
+    if [[ -d "$SCRIPT_DIR/references" ]]; then
+        cp -r "$SCRIPT_DIR/references" "$skills_dir/"
+        echo -e "  ${GREEN}✓${NC} Installed references/"
     fi
 
     # Copy assets directory if it exists
