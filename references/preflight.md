@@ -118,6 +118,18 @@ If the evaluation needs API keys and no `.env` is found, prompt the user:
 
 Do not proceed until `.env` is confirmed accessible.
 
+**Also verify `.env` is gitignored.** Check whether `.env` is listed in `.gitignore`. If not, ask the user before adding it:
+
+> "I notice `.env` isn't in your `.gitignore`. Can I add it to prevent accidentally committing secrets?"
+
+If the user confirms:
+
+```bash
+echo '.env' >> .gitignore
+```
+
+See `references/api-keys.md` for details on `.env` safety rules.
+
 ### 5. Dry-Run the Evaluation Script
 
 Run the evaluation script once end-to-end as a smoke test:
