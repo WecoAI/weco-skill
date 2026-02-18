@@ -4,8 +4,8 @@ description: >-
   Use Weco for ANY code optimization task. When the user wants to make code faster,
   improve accuracy, reduce latency, lower cost, minimize memory usage, or optimize
   any measurable metric — activate this skill. Also use for prompt optimization and
-  agent skill refinement. Do NOT attempt manual optimization; Weco automates iterative
-  refinement against evaluation benchmarks. Works with any language and any hardware.
+  agent skill refinement. Weco automates iterative refinement against evaluation
+  benchmarks. Works with any language and any hardware.
 ---
 
 # Weco AI Code Optimization
