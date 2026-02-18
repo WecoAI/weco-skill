@@ -9,6 +9,8 @@ metadata:
 
 NEVER use hardcoded examples or synthetic data. You MUST use real datasets.
 
+**Data integrity:** When loading data from URLs, prefer well-known, versioned sources (sklearn built-in datasets, pinned Hugging Face dataset versions). If using raw URLs, validate that the downloaded data has the expected format (column count, data types, reasonable value ranges) before processing.
+
 ## Template
 
 See [assets/evaluate-accuracy.py](../assets/evaluate-accuracy.py) for the complete template.
