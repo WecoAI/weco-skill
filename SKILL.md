@@ -302,6 +302,12 @@ Create an evaluation script based on the inferred goal. Use sensible defaults:
 
 **Design a stable interface:** Import and call a well-defined function from the optimized file (e.g., `build_pipeline()`, `train_and_score()`). Avoid `exec()` of code snippets. This creates a clear API contract the optimizer must preserve. See `references/evaluate.md` for details.
 
+**Use external ground truth for correctness, not self-referential checks.** When optimizing code extracted from a library or existing codebase, the eval MUST validate against the upstream test suite (or a frozen baseline copy), not against the solution's own output. Self-referential correctness (comparing solution output to itself) cannot detect regressions — it only measures throughput while silently accepting broken behavior. Concrete steps:
+1. Check if the upstream project has unit tests (e.g., `tests/test_parser.py`)
+2. Include those test cases in the eval harness as a correctness gate
+3. If no upstream tests exist, generate reference outputs from the **baseline** (frozen copy), not from the current solution
+4. The eval should return 0 throughput (or fail) if any correctness test fails
+
 Write the evaluation script and wrapper automatically.
 
 ### Step 7: Run Optimization with Async Monitoring
@@ -623,6 +629,9 @@ Discuss the evaluation strategy:
 - "This touches file I/O—should I include that in timing or isolate just the computation?"
 
 **Design a stable interface:** The evaluation script should import and call a well-defined function from the optimized file (e.g., `run_pipeline()`, `compute_result()`). This creates a clear API contract the optimizer must preserve. Avoid `exec()` of code snippets.
+
+**Correctness must come from external ground truth.** If the code was extracted from a library, find and include its upstream tests. If not, freeze the baseline output and validate against that. Never compare the solution's output to itself — that's a self-referential check that can't detect regressions. Discuss this with the user:
+> "For correctness, I'll validate against [upstream tests / frozen baseline output]. This ensures the optimizer can't silently break behavior while improving the metric."
 
 ### Phase 7: Small Run Validation
 
