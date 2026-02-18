@@ -31,6 +31,14 @@ Weco systematically explores code variants, tests them against your evaluation, 
 - Adding new features (not optimization)
 - Refactoring without a performance goal
 
+**Multi-file support:** Weco can optimize up to 10 files simultaneously. Use `--sources` to specify multiple files:
+```
+weco run --sources src/model.py src/utils.py -c "python evaluate.py" -m accuracy -g maximize
+```
+For single-file optimization, continue using `--source` (or `-s`). See `references/multi-file.md` for guidance on when to use multi-file mode vs single-file extraction.
+
+---
+
 ## Choose Your Mode
 
 At the start of each optimization, ask the user which mode they prefer:

@@ -31,7 +31,14 @@ echo "NONE"
 
 > "I need a Python package manager to install evaluation dependencies. Please install one:
 >
-> - `uv` (recommended): `curl -LsSf https://astral.sh/uv/install.sh | sh`
+> - `uv` (recommended):
+>   - **macOS**: `brew install uv`
+>   - **Linux/macOS**: `pip install uv`
+>   - **From source** (download first, then run):
+>     ```
+>     curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh
+>     sh /tmp/uv-install.sh
+>     ```
 > - `pip`: Usually included with Python (`python -m ensurepip`)
 >
 > Let me know when it's ready."
