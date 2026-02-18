@@ -21,16 +21,28 @@ If this succeeds, Weco is ready to use.
 
 ## Install Weco CLI
 
-If not installed, use the official installer:
+If not installed, download and run the official installer. Always ask the user for confirmation before executing downloaded scripts.
+
+**macOS / Linux:**
 
 ```bash
-curl -fsSL https://weco.ai/install.sh | sh
+# Step 1: Download the installer
+curl -fsSL https://weco.ai/install.sh -o /tmp/weco-install.sh
+
+# Step 2: Execute (requires user approval)
+sh /tmp/weco-install.sh
 ```
 
-On Windows (PowerShell):
+> **Before running**, tell the user: "I've downloaded the Weco installer to `/tmp/weco-install.sh`. Shall I proceed with running it?"
+
+**Windows (PowerShell):**
 
 ```powershell
-irm https://weco.ai/install.ps1 | iex
+# Step 1: Download the installer
+Invoke-WebRequest -Uri https://weco.ai/install.ps1 -OutFile $env:TEMP\weco-install.ps1
+
+# Step 2: Execute (requires user approval)
+& $env:TEMP\weco-install.ps1
 ```
 
 ## Authenticate

@@ -21,6 +21,9 @@ optimized = load_module(".weco/optimize.py")
 # =============================================================================
 # LOAD A REAL DATASET - Do NOT use hardcoded examples!
 # =============================================================================
+# When loading from URLs, prefer well-known versioned sources. Validate that
+# downloaded data matches the expected format before processing.
+#
 # Use a real dataset appropriate for the task. Examples:
 #
 # Spam detection:

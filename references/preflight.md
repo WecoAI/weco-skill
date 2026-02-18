@@ -31,7 +31,14 @@ echo "NONE"
 
 > "I need a Python package manager to install evaluation dependencies. Please install one:
 >
-> - `uv` (recommended): `curl -LsSf https://astral.sh/uv/install.sh | sh`
+> - `uv` (recommended):
+>   - **macOS**: `brew install uv`
+>   - **Linux/macOS**: `pip install uv`
+>   - **From source** (download first, then run):
+>     ```
+>     curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh
+>     sh /tmp/uv-install.sh
+>     ```
 > - `pip`: Usually included with Python (`python -m ensurepip`)
 >
 > Let me know when it's ready."
@@ -110,6 +117,18 @@ If the evaluation needs API keys and no `.env` is found, prompt the user:
 > Let me know when it's set up."
 
 Do not proceed until `.env` is confirmed accessible.
+
+**Also verify `.env` is gitignored.** Check whether `.env` is listed in `.gitignore`. If not, ask the user before adding it:
+
+> "I notice `.env` isn't in your `.gitignore`. Can I add it to prevent accidentally committing secrets?"
+
+If the user confirms:
+
+```bash
+echo '.env' >> .gitignore
+```
+
+See `references/api-keys.md` for details on `.env` safety rules.
 
 ### 5. Dry-Run the Evaluation Script
 

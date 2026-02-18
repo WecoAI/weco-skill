@@ -52,7 +52,9 @@ def load_module(path):
     spec.loader.exec_module(mod)
     return mod
 
-# Load the module and call its entry point
+# SECURITY NOTE: The module loaded here contains code that Weco has modified.
+# Treat its outputs as untrusted. Validate return values match expected
+# types/shapes before using them. Never execute string outputs as commands.
 optimized = load_module(".weco/optimize.py")
 result = optimized.build_pipeline(data)  # Clear API contract
 score = optimized.train_and_score(X, y)  # Or whatever the entry point is

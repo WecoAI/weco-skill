@@ -30,3 +30,7 @@ target/
 
 # Logs
 *.log
+
+# Secrets
+.env
+.env.*

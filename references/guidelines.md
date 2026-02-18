@@ -104,3 +104,11 @@ weco run ... --apply-change
 ```
 
 Without this flag, Weco will prompt for confirmation before applying changes.
+
+## Reviewing Optimization Output
+
+Weco-generated code has not been reviewed. Before applying changes:
+- Review the diff to understand what changed
+- Verify the evaluation metric genuinely improved
+- Check that no unexpected dependencies, network calls, or file operations were introduced
+- The agent should always offer the user a chance to review before applying to the project codebase
