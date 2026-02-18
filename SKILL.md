@@ -31,12 +31,6 @@ Weco systematically explores code variants, tests them against your evaluation, 
 - Adding new features (not optimization)
 - Refactoring without a performance goal
 
-**Multi-file support:** Weco can optimize up to 10 files simultaneously. Use `--sources` to specify multiple files:
-```
-weco run --sources src/model.py src/utils.py -c "python evaluate.py" -m accuracy -g maximize
-```
-For single-file optimization, continue using `--source` (or `-s`). See `references/multi-file.md` for guidance on when to use multi-file mode vs single-file extraction.
-
 ---
 
 ## Choose Your Mode
@@ -1137,6 +1131,7 @@ For advanced topics, see the `references/` directory:
 - `references/gpu-profiling.md` — CUDA timing with events
 - `references/eval-skill.md` — Evaluating agent skills (Claude Code, Cursor, etc.)
 - `references/eval-llm-judge.md` — LLM-as-judge evaluation for prompts
+- `references/multi-file.md` — Extracting code from larger codebases
 - `references/limitations.md` — When NOT to use Weco
 
 ---

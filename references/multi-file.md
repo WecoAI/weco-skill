@@ -1,83 +1,161 @@
 ---
 name: multi-file
-description: Optimizing across multiple files
+description: Extracting optimizable code from larger codebases
 metadata:
-  tags: multi-file, scoping, dependencies
+  tags: extraction, dependencies, isolation, refactoring
 ---
 
-## Multi-File Optimization
+## The Single-File Constraint
 
-Weco natively supports optimizing up to 10 files simultaneously. The optimizer sees all scoped files and can make coordinated changes across them while maintaining consistency.
+Weco optimizes a single file. Real codebases have many files with complex dependencies.
 
-### When to Use Multi-File Mode
+## Strategy: Extract and Isolate
 
-Use `--sources` when the optimization requires changes across multiple files:
-- Shared interfaces between modules
-- Cross-file import dependencies
-- Config + implementation that must stay in sync
-- Model + utility code that needs joint optimization
-
-```bash
-weco run --sources src/model.py src/utils.py src/config.py \
-  -c "python evaluate.py" -m latency -g minimize
-```
-
-### Limits
-
-- **Maximum 10 files** per optimization run
-- **200KB per file**, **500KB total** across all files
-- Files are specified as paths relative to the project root
-- Run the CLI from the project root directory
-
-### When to Use Single-File Mode Instead
-
-If the optimization target is a single hot path, single-file mode (`--source`) is simpler and uses fewer tokens:
-
-```bash
-weco run --source src/model.py -c "python evaluate.py" -m latency -g minimize
-```
-
-### Extracting Code for Large Codebases
-
-If you have more than 10 files or exceed size limits, extract the relevant code:
-
-#### Step 1: Identify the Hot Path
+### Step 1: Identify the Hot Path
 
 Profile first to find what actually needs optimization:
 
 ```python
+# Using cProfile
 import cProfile
 import pstats
 
 profiler = cProfile.Profile()
 profiler.enable()
+# Run your code
 result = your_function(data)
 profiler.disable()
 
 stats = pstats.Stats(profiler)
 stats.sort_stats('cumulative')
-stats.print_stats(20)
+stats.print_stats(20)  # Top 20 functions by time
 ```
 
-#### Step 2: Scope Down to Key Files
+### Step 2: Extract to a Self-Contained File
 
-Select only the files that contain the code paths being optimized. Leave config, tests, and infrastructure files out of the scoped set.
-
-#### Step 3: Use Import Wrappers for Complex Dependencies
-
-If dependencies outside the scoped files are too complex to inline:
+Create a single file that contains everything Weco needs:
 
 ```python
+# .weco/optimize.py
+
+# Option 1: Copy dependencies inline
+# Instead of: from myproject.utils import helper
+# Copy the helper function directly into this file
+
+def helper(x):
+    # Copied from myproject/utils.py
+    return x * 2
+
+def target_function(data):
+    return helper(data)
+```
+
+### Step 3: Use Import Wrappers for Complex Dependencies
+
+If dependencies are too complex to copy:
+
+```python
+# .weco/optimize.py
 import sys
 sys.path.insert(0, '/path/to/project')
 
+# Now imports work
 from myproject.models import BaseModel
 from myproject.utils import preprocess
+
+class OptimizedModel(BaseModel):
+    def forward(self, x):
+        # This is what Weco will optimize
+        x = preprocess(x)
+        return super().forward(x)
 ```
 
-### After Optimization
+### Step 4: Handle Side Effects
 
-1. Review the changes across all modified files
-2. Understand what changed and why
-3. Run your full test suite
-4. Profile again to verify improvement in context
+Weco will modify the optimize.py file. Ensure side effects are contained:
+
+```python
+# BAD - side effects at import time
+model = load_model()  # Runs when file is imported
+
+# GOOD - lazy initialization
+_model = None
+def get_model():
+    global _model
+    if _model is None:
+        _model = load_model()
+    return _model
+```
+
+## Common Patterns
+
+### Optimizing a Class Method
+
+```python
+# Original: myproject/model.py
+class MyModel:
+    def predict(self, x):
+        # Complex logic
+        pass
+
+# .weco/optimize.py - extract just the method
+import sys
+sys.path.insert(0, '/path/to/project')
+from myproject.model import MyModel
+
+class OptimizedModel(MyModel):
+    def predict(self, x):
+        # Weco optimizes this
+        # Start with copy of original implementation
+        pass
+
+# Export for evaluation
+model = OptimizedModel()
+def predict(x):
+    return model.predict(x)
+```
+
+### Optimizing a Pipeline Stage
+
+```python
+# Original pipeline: load -> preprocess -> model -> postprocess
+
+# .weco/optimize.py - just the slow stage
+def preprocess(data):
+    # Only this stage gets optimized
+    # Other stages called from evaluation script
+    pass
+```
+
+## Evaluation Script for Multi-File
+
+```python
+# .weco/evaluate.py
+import sys
+sys.path.insert(0, '/path/to/project')
+
+# Load optimized module
+import importlib.util
+spec = importlib.util.spec_from_file_location("opt", ".weco/optimize.py")
+optimized = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(optimized)
+
+# Use project's data loading
+from myproject.data import load_test_data
+X_test, y_test = load_test_data()
+
+# Evaluate
+predictions = optimized.predict(X_test)
+accuracy = (predictions == y_test).mean()
+print(f"accuracy: {accuracy:.4f}")
+```
+
+## After Optimization: Reintegration
+
+Once Weco finds an improvement:
+
+1. Review the changes in `.weco/optimize.py`
+2. Understand what changed (don't blindly copy)
+3. Port changes back to original file(s)
+4. Run full test suite
+5. Profile again to verify improvement in context

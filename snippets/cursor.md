@@ -10,7 +10,7 @@ Weco systematically explores code variants, tests them against your evaluation, 
 - Iterate on prompt quality or agent skill behavior
 - Optimize anything where manual iteration would be tedious
 
-**Weco works with:** Any language, any hardware, any computable metric. Supports single-file (`--source`) and multi-file (`--sources`) optimization.
+**Weco works with:** Any language, any hardware, any computable metric.
 
 **Do NOT use Weco for:** Style/readability improvements (no metric), adding new features, refactoring without a performance goal.
 
