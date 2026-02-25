@@ -1,6 +1,6 @@
 # Profile Schema
 
-Stored at `.weco/profile.yaml` (created silently, user can edit if desired):
+Stored at `.weco/profile.yaml` (created automatically, user can edit if desired):
 
 ```yaml
 user:

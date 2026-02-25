@@ -68,7 +68,6 @@ cd "$(dirname "$0")/.."
 # python .weco/evaluate.py
 
 # --- Python with conda ---
-# eval "$(conda shell.bash hook)"
 # conda activate myenv
 # python .weco/evaluate.py
 

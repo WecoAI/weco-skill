@@ -11,6 +11,7 @@
 # =============================================================================
 
 set -e
+# Resolve project root (read-only path resolution)
 cd "$(dirname "$0")/.."
 
 # =============================================================================
@@ -25,7 +26,6 @@ cd "$(dirname "$0")/.."
 # python .weco/evaluate.py
 
 # --- Python with conda ---
-# eval "$(conda shell.bash hook)"
 # conda activate myenv
 # python .weco/evaluate.py
 

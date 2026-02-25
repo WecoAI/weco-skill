@@ -370,8 +370,8 @@ Do NOT continue to the next monitoring cycle without attempting the install.
 
 | Error Pattern | Action to Take |
 |---------------|----------------|
-| `ModuleNotFoundError: No module named 'foo'` | Run `pip install foo` immediately |
-| `ImportError: cannot import name 'X' from 'Y'` | Run `pip install --upgrade Y` immediately |
+| `ModuleNotFoundError: No module named 'foo'` | Ask user to confirm, then install `foo` with the project's package manager |
+| `ImportError: cannot import name 'X' from 'Y'` | Ask user to confirm, then upgrade `Y` with the project's package manager |
 | `FileNotFoundError` on data files | Copy or generate the required data |
 | `PermissionError` on scripts | Run `chmod +x <file>` |
 | `PermissionError` on `.env` or venv | **Cursor sandbox** — stop the run, tell user to set `required_permissions: ['all']`, then restart |
@@ -389,9 +389,9 @@ Keep cycling through these steps without waiting for user input:
 
 1. Check output: `TaskOutput(task_id, block: false)`
 2. If running + no errors → brief progress update, check again in 30-60s
-3. If error → fix it immediately (install package via bash), then check again
+3. If error → ask user to confirm fix (e.g. install missing package), then check again
 4. If finished → proceed to results
-5. **NEVER stop to ask "should I continue monitoring?" - just keep going**
+5. **Continue monitoring automatically** — provide brief progress updates to the user at each check
 
 Only stop the loop to ask the user if:
 - You need to choose between fundamentally different approaches
@@ -486,13 +486,13 @@ If no profile exists, interview them (you take the place as a world-class Applie
 
 Keep it conversational—one natural question, not an interrogation.
 
-**Silently infer from codebase:**
+**Infer from codebase (and briefly share key findings with the user):**
 - Language and frameworks from imports
 - Domain from naming and patterns
 - Team context from git history
 - Machine specs from system commands
 
-Save profile to `.weco/profile.yaml` without showing the user 50 lines of YAML. See `references/profile-schema.md` for the schema.
+Save profile to `.weco/profile.yaml` and briefly summarize what was recorded (e.g., "I've noted your environment: macOS, Python 3.11, uv"). See `references/profile-schema.md` for the schema.
 
 ### Phase 2: Workspace Setup
 
@@ -715,8 +715,8 @@ Do NOT continue to the next monitoring cycle without attempting the install.
 
 | Error Pattern | Action to Take |
 |---------------|----------------|
-| `ModuleNotFoundError: No module named 'foo'` | Run `pip install foo` immediately |
-| `ImportError: cannot import name 'X' from 'Y'` | Run `pip install --upgrade Y` immediately |
+| `ModuleNotFoundError: No module named 'foo'` | Ask user to confirm, then install `foo` with the project's package manager |
+| `ImportError: cannot import name 'X' from 'Y'` | Ask user to confirm, then upgrade `Y` with the project's package manager |
 | `FileNotFoundError` on data files | Copy or generate the required data |
 | `PermissionError` on scripts | Run `chmod +x <file>` |
 | `PermissionError` on `.env` or venv | **Cursor sandbox** — stop the run, tell user to set `required_permissions: ['all']`, then restart |
@@ -734,9 +734,9 @@ Keep cycling through these steps without waiting for user input:
 
 1. Check output: `TaskOutput(task_id, block: false)`
 2. If running + no errors → brief progress update, check again in 30-60s
-3. If error → fix it immediately (install package via bash), then check again
+3. If error → ask user to confirm fix (e.g. install missing package), then check again
 4. If finished → proceed to results
-5. **NEVER stop to ask "should I continue monitoring?" - just keep going**
+5. **Continue monitoring automatically** — provide brief progress updates to the user at each check
 
 Only stop the loop to ask the user if:
 - You need to choose between fundamentally different approaches

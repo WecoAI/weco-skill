@@ -39,7 +39,7 @@ fi
 
 ## When to Set Up `.env` Loading
 
-- **Automatically**: When generating evaluation scripts or any code that calls external APIs, include `.env` loading by default. Do not ask the user — just add it.
+- **By default**: When generating evaluation scripts or any code that calls external APIs, include `.env` loading. Mention to the user that `.env` loading has been included.
 - **`.env` file creation**: If the script needs keys and no `.env` file exists, ask the user to create one and tell you when it's ready:
 
 > "This script needs an API key to run. Please create a `.env` file in your project root with the key for your chosen provider:

@@ -34,11 +34,7 @@ echo "NONE"
 > - `uv` (recommended):
 >   - **macOS**: `brew install uv`
 >   - **Linux/macOS**: `pip install uv`
->   - **From source** (download first, then run):
->     ```
->     curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh
->     sh /tmp/uv-install.sh
->     ```
+>   - **Any platform**: See https://docs.astral.sh/uv/getting-started/installation/
 > - `pip`: Usually included with Python (`python -m ensurepip`)
 >
 > Let me know when it's ready."
@@ -79,7 +75,7 @@ Install all packages required by the evaluation script **before** the first run:
 
 **Python:**
 ```bash
-# Install evaluation dependencies
+# Install evaluation dependencies (in the task's virtual environment)
 pip install anthropic python-dotenv  # or uv pip install ...
 
 # If the project has a requirements file, install those too
