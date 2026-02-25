@@ -28,12 +28,25 @@ mkdir -p .weco
 
 ## Step 2: Copy source files
 
+**Single file:**
+
 ```bash
 cp path/to/source.py .weco/optimize.py
 cp path/to/source.py .weco/baseline.py
 ```
 
 The `optimize.py` is what Weco modifies. The `baseline.py` preserves the original for comparison.
+
+**Multiple files** (use `--sources` instead of `--source`):
+
+```bash
+cp path/to/model.py .weco/model.py
+cp path/to/utils.py .weco/utils.py
+
+# Keep baselines
+cp path/to/model.py .weco/model.py.baseline
+cp path/to/utils.py .weco/utils.py.baseline
+```
 
 ## Step 3: Create config.json
 

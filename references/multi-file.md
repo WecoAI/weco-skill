@@ -1,15 +1,111 @@
 ---
 name: multi-file
-description: Extracting optimizable code from larger codebases
+description: Optimizing code that spans multiple files
 metadata:
-  tags: extraction, dependencies, isolation, refactoring
+  tags: multi-file, sources, dependencies, extraction
 ---
 
-## The Single-File Constraint
+## Multi-File Optimization
 
-Weco optimizes a single file. Real codebases have many files with complex dependencies.
+Weco supports optimizing multiple files simultaneously using the `--sources` flag. This is the recommended approach when your optimization spans multiple files.
 
-## Strategy: Extract and Isolate
+### Using `--sources`
+
+Pass multiple files directly to Weco:
+
+```bash
+weco run --sources model.py utils.py config.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric accuracy \
+  --goal maximize \
+  --steps 10 \
+  --output plain \
+  --apply-change
+```
+
+Weco will optimize all specified files simultaneously, allowing changes across file boundaries.
+
+### Limits
+
+| Constraint | Limit |
+|------------|-------|
+| Max files | 10 |
+| Max per file | 200 KB |
+| Max total size | 500 KB |
+
+If your files exceed these limits, use the extract-and-isolate fallback (see below).
+
+### When to use `--sources`
+
+Use `--sources` when:
+- The hot path crosses file boundaries (e.g., a model file calls utility functions in another file)
+- Changes in one file require coordinated changes in another
+- You have 2-10 tightly coupled files within the size limits
+
+### Choosing which files to include
+
+Only include files that contain code Weco should modify. Do NOT include:
+- Read-only config files or data files
+- Large dependency files that won't change
+- Test files (these belong in the evaluation script, not as optimization targets)
+
+Trace the hot path from the user's target function through its imports. A file belongs in `--sources` only if it contains logic that needs to change for the optimization to succeed.
+
+### Workspace setup with multiple files
+
+When using isolated mode (`.weco/<task>/`):
+
+```bash
+mkdir -p .weco/<task>
+
+# Copy all source files
+cp path/to/model.py .weco/<task>/model.py
+cp path/to/utils.py .weco/<task>/utils.py
+
+# Keep baselines for comparison
+cp path/to/model.py .weco/<task>/model.py.baseline
+cp path/to/utils.py .weco/<task>/utils.py.baseline
+```
+
+Then run:
+
+```bash
+weco run --sources .weco/<task>/model.py .weco/<task>/utils.py \
+  --eval-command "bash .weco/<task>/evaluate.sh" \
+  --metric speedup \
+  --goal maximize \
+  --output plain \
+  --apply-change
+```
+
+### Evaluation script for multi-file
+
+The evaluation script doesn't change much — it just needs to load from the right paths:
+
+```python
+# .weco/<task>/evaluate.py
+import importlib.util
+
+def load_module(path, name="mod"):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+# Load optimized modules
+model = load_module(".weco/<task>/model.py", "model")
+utils = load_module(".weco/<task>/utils.py", "utils")
+
+# Evaluate
+result = model.run(utils.preprocess(test_data))
+print(f"accuracy: {result:.4f}")
+```
+
+---
+
+## Fallback: Extract and Isolate
+
+If `--sources` isn't suitable (e.g., too many files involved, or you only need to optimize a small function buried deep in a large codebase), extract the critical code into a single file.
 
 ### Step 1: Identify the Hot Path
 
@@ -87,74 +183,11 @@ def get_model():
     return _model
 ```
 
-## Common Patterns
-
-### Optimizing a Class Method
-
-```python
-# Original: myproject/model.py
-class MyModel:
-    def predict(self, x):
-        # Complex logic
-        pass
-
-# .weco/optimize.py - extract just the method
-import sys
-sys.path.insert(0, '/path/to/project')
-from myproject.model import MyModel
-
-class OptimizedModel(MyModel):
-    def predict(self, x):
-        # Weco optimizes this
-        # Start with copy of original implementation
-        pass
-
-# Export for evaluation
-model = OptimizedModel()
-def predict(x):
-    return model.predict(x)
-```
-
-### Optimizing a Pipeline Stage
-
-```python
-# Original pipeline: load -> preprocess -> model -> postprocess
-
-# .weco/optimize.py - just the slow stage
-def preprocess(data):
-    # Only this stage gets optimized
-    # Other stages called from evaluation script
-    pass
-```
-
-## Evaluation Script for Multi-File
-
-```python
-# .weco/evaluate.py
-import sys
-sys.path.insert(0, '/path/to/project')
-
-# Load optimized module
-import importlib.util
-spec = importlib.util.spec_from_file_location("opt", ".weco/optimize.py")
-optimized = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(optimized)
-
-# Use project's data loading
-from myproject.data import load_test_data
-X_test, y_test = load_test_data()
-
-# Evaluate
-predictions = optimized.predict(X_test)
-accuracy = (predictions == y_test).mean()
-print(f"accuracy: {accuracy:.4f}")
-```
-
-## After Optimization: Reintegration
+### After Optimization: Reintegration
 
 Once Weco finds an improvement:
 
-1. Review the changes in `.weco/optimize.py`
+1. Review the changes in the optimized file(s)
 2. Understand what changed (don't blindly copy)
 3. Port changes back to original file(s)
 4. Run full test suite

@@ -24,6 +24,15 @@ weco install cursor   # For Cursor
 weco install claude   # For Claude Code
 ```
 
+### Cursor Plugin
+
+Install directly from the [Cursor marketplace](https://cursor.com/marketplace):
+
+1. Open Cursor
+2. Go to **Settings > Plugins**
+3. Search for **"weco"**
+4. Click **Install**
+
 ### Quick install: npx
 
 Install the skill using the Agent Skills CLI:
@@ -94,10 +103,14 @@ The skill offers two modes:
 
 ```
 weco-skill/
+├── .cursor-plugin/       # Cursor plugin manifest
+│   └── plugin.json
 ├── SKILL.md              # Full skill instructions (source of truth)
 ├── CLAUDE.md             # Trigger snippet for Claude Code (ships with skill)
 ├── install.sh            # Interactive installer
 ├── README.md             # This file
+├── rules/                # Cursor plugin rules
+│   └── weco.mdc          # Always-on trigger rule for Cursor
 ├── snippets/             # Trigger snippets (used by weco-cli installer)
 │   ├── claude.md         # Claude Code trigger
 │   ├── claude-global.md  # Claude Code global trigger

@@ -18,12 +18,14 @@ These take seconds to implement manually.
 
 ## Known Limitations
 
-### Single File Only
+### Multi-File Limits
 
-Weco optimizes one file. For multi-file optimization:
-- Extract the critical code to a single file
-- Ensure dependencies are available
-- Reintegrate changes manually after optimization
+Weco can optimize multiple files simultaneously using `--sources`, subject to these limits:
+- **Max 10 files** per optimization run
+- **Max 200 KB per file**
+- **Max 500 KB total** across all files
+
+If your optimization exceeds these limits, extract the critical code path into fewer/smaller files. See `references/multi-file.md` for patterns.
 
 ### No Multi-Objective Optimization
 

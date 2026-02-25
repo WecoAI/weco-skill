@@ -1,0 +1,22 @@
+{
+  "name": "weco",
+  "description": "AI-powered code optimization. Make code faster, more accurate, or cheaper — Weco iteratively refines code against any metric you define.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Weco AI"
+  },
+  "homepage": "https://weco.ai",
+  "repository": "https://github.com/WecoAI/weco-skill",
+  "license": "MIT",
+  "keywords": [
+    "optimization",
+    "performance",
+    "speed",
+    "accuracy",
+    "benchmarking",
+    "code-optimization"
+  ],
+  "logo": "assets/logo.svg",
+  "rules": "rules",
+  "assets": "assets"
+}

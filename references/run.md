@@ -21,7 +21,8 @@ weco run \
 
 | Option | Description |
 |--------|-------------|
-| `-s, --source` | Path to source file to optimize |
+| `-s, --source` | Path to a single source file to optimize (mutually exclusive with `--sources`) |
+| `--sources` | Paths to multiple source files to optimize together (mutually exclusive with `-s`). Max 10 files, 200 KB each, 500 KB total. |
 | `-c, --eval-command` | Command to run for evaluation |
 | `-m, --metric` | Metric name printed by eval command |
 | `-g, --goal` | `maximize` or `minimize` |
@@ -91,6 +92,18 @@ weco run \
 ```
 
 Logs saved to `.runs/<run-id>/outputs/step_<n>.out.txt`
+
+### Multi-file optimization
+
+```bash
+weco run \
+  --sources .weco/model.py .weco/utils.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric accuracy \
+  --goal maximize \
+  --output plain \
+  --apply-change
+```
 
 ### Interactive mode with manual review
 

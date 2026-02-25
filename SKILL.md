@@ -180,7 +180,7 @@ Acknowledge the quality while setting realistic expectations:
 
 ### Step 1: Understand the Request
 
-Read the code and infer what the user wants:
+Read the code, identify the optimization target, and decide which files to optimize:
 
 ```bash
 # Read the target file
@@ -195,6 +195,20 @@ ls -la *.py pyproject.toml requirements.txt .venv 2>/dev/null
 - "not accurate" / "wrong results" → accuracy
 - "uses too much memory" → memory optimization
 - "reduce loss" / "improve model" → loss minimization
+
+**Decide which files to optimize:**
+
+Trace the code path from the user's target to identify all files involved:
+1. Read the target file and follow its imports
+2. Identify which functions/classes are on the hot path
+3. Check if the critical logic spans multiple files
+
+**File selection rules:**
+- **1 file**: Use `--source` — the target file contains all the optimizable logic
+- **2-10 files**: Use `--sources` — the hot path crosses file boundaries (e.g., a model file calls utility functions in another file). Only include files that contain code Weco should change — don't include files that are just read as data or config.
+- **>10 files or >500 KB total**: Too many files for `--sources`. Extract the critical code path into fewer files (see `references/multi-file.md`). Each file must also be under 200 KB.
+
+Prefer fewer files — only include a file if it contains code that needs to change for the optimization to succeed.
 
 ### Step 2: Establish the Baseline
 
@@ -274,8 +288,16 @@ which weco && weco credits balance
 # Create task directory (if using .weco/)
 WECO_TASK="<inferred_task_name>"
 mkdir -p .weco/$WECO_TASK
+
+# Single file:
 cp <source_file> .weco/$WECO_TASK/optimize.<ext>
 cp <source_file> .weco/$WECO_TASK/baseline.<ext>
+
+# Multiple files (copy each, preserving original names):
+cp <file1> .weco/$WECO_TASK/<file1_name>
+cp <file2> .weco/$WECO_TASK/<file2_name>
+cp <file1> .weco/$WECO_TASK/<file1_name>.baseline
+cp <file2> .weco/$WECO_TASK/<file2_name>.baseline
 ```
 
 ### Step 5: Environment Pre-flight
@@ -318,6 +340,7 @@ Use Claude Code's built-in background task feature to avoid repeated permission 
 
 ```bash
 # Run with run_in_background: true
+# Single file:
 weco run \
   --source .weco/$WECO_TASK/optimize.<ext> \
   --eval-command "bash .weco/$WECO_TASK/evaluate.sh" \
@@ -327,7 +350,20 @@ weco run \
   --steps 5 \
   --output plain \
   --apply-change
+
+# Multiple files (use --sources instead of --source):
+weco run \
+  --sources .weco/$WECO_TASK/file1.<ext> .weco/$WECO_TASK/file2.<ext> \
+  --eval-command "bash .weco/$WECO_TASK/evaluate.sh" \
+  --metric <metric> \
+  --goal <maximize|minimize> \
+  --model claude-sonnet-4-5 \
+  --steps 5 \
+  --output plain \
+  --apply-change
 ```
+
+Use `--sources` when the optimization spans multiple tightly coupled files. Weco will optimize all specified files simultaneously.
 
 Set `run_in_background: true` on this Bash command. This returns a task ID you can check with `TaskOutput` without needing repeated bash permissions.
 
@@ -593,11 +629,19 @@ Run baseline measurement and present it with appropriate context. Adapt based on
 
 ### Phase 5: Code Analysis
 
-Analyze the optimization target:
+Analyze the optimization target and decide which files to optimize:
 
 1. **Identify the target**: Which function(s) need optimization?
-2. **Trace dependencies**: Does it span multiple files?
+2. **Trace dependencies**: Follow imports to find all files on the hot path
 3. **Find the hot path**: Where is time/resources spent?
+4. **Select files**: Decide which files contain code that needs to change
+
+**File selection rules:**
+- **1 file**: Use `--source` — all optimizable logic is in one file
+- **2-10 files**: Use `--sources` — only include files containing code Weco should change (not read-only data/config)
+- **>10 files or >500 KB total**: Extract the critical path into fewer files (see `references/multi-file.md`). Each file must also be under 200 KB.
+
+Prefer fewer files — only include a file if it contains code that needs to change for the optimization to succeed.
 
 **If code spans multiple files:**
 
@@ -605,11 +649,12 @@ Analyze the optimization target:
 > - `helper_function()` in `src/utils.py`
 > - `compute_matrix()` in `src/math_ops.py`
 >
-> Weco optimizes one file at a time. How would you like to proceed?
+> How would you like to proceed?
 >
-> 1. **Consolidate**: I'll merge the relevant code into one file, optimize it, then help you integrate back
-> 2. **Optimize in place**: Focus on just the main file (may limit optimization potential)
-> 3. **Something else**: Tell me your preference"
+> 1. **Optimize together**: Use `--sources` to optimize these files simultaneously (up to 10 files, 200 KB each, 500 KB total)
+> 2. **Consolidate**: Merge the relevant code into one file, optimize it, then help you integrate back
+> 3. **Focus on one file**: Optimize just the main file (may limit optimization potential)
+> 4. **Something else**: Tell me your preference"
 
 **Wait for approval before any refactoring.**
 
@@ -638,8 +683,20 @@ Discuss the evaluation strategy:
 Before committing to a full optimization, validate with a single step:
 
 ```bash
+# Single file:
 weco run \
   --source .weco/$WECO_TASK/optimize.<ext> \
+  --eval-command "bash .weco/$WECO_TASK/evaluate.sh" \
+  --metric <metric> \
+  --goal <maximize|minimize> \
+  --model claude-sonnet-4-5 \
+  --steps 1 \
+  --output plain \
+  --apply-change
+
+# Or with multiple files:
+weco run \
+  --sources .weco/$WECO_TASK/file1.<ext> .weco/$WECO_TASK/file2.<ext> \
   --eval-command "bash .weco/$WECO_TASK/evaluate.sh" \
   --metric <metric> \
   --goal <maximize|minimize> \
@@ -663,6 +720,7 @@ Use Claude Code's built-in background task feature to avoid repeated permission 
 
 ```bash
 # Run with run_in_background: true
+# Single file:
 weco run \
   --source .weco/$WECO_TASK/optimize.<ext> \
   --eval-command "bash .weco/$WECO_TASK/evaluate.sh" \
@@ -672,7 +730,20 @@ weco run \
   --steps 5 \
   --output plain \
   --apply-change
+
+# Multiple files (use --sources instead of --source):
+weco run \
+  --sources .weco/$WECO_TASK/file1.<ext> .weco/$WECO_TASK/file2.<ext> \
+  --eval-command "bash .weco/$WECO_TASK/evaluate.sh" \
+  --metric <metric> \
+  --goal <maximize|minimize> \
+  --model claude-sonnet-4-5 \
+  --steps 5 \
+  --output plain \
+  --apply-change
 ```
+
+Use `--sources` when the optimization spans multiple tightly coupled files. Weco will optimize all specified files simultaneously.
 
 Set `run_in_background: true` on this Bash command. This returns a task ID you can check with `TaskOutput` without needing repeated bash permissions.
 
@@ -893,13 +964,14 @@ If refactoring was done (consolidated from multiple files):
 > **What this usually means:**
 > - The code is already well-optimized (nice work!)
 > - The bottleneck is elsewhere (I/O, network, database)
-> - Meaningful optimization requires architectural changes beyond single-file scope
+> - Meaningful optimization requires architectural changes across more of the codebase
 >
 > **What would you like to do?**
 >
 > 1. **Profile**: Identify where time is actually spent
 > 2. **Analyze call graph**: Find the real bottleneck
-> 3. **Architectural review**: Suggest changes beyond single-file scope
+> 3. **Try multi-file**: Use `--sources` to optimize multiple files together
+> 4. **Architectural review**: Suggest broader changes
 > 4. **Something else**: Tell me what you'd like"
 
 ### Evaluation Script Error
@@ -1140,7 +1212,7 @@ For advanced topics, see the `references/` directory:
 - `references/gpu-profiling.md` — CUDA timing with events
 - `references/eval-skill.md` — Evaluating agent skills (Claude Code, Cursor, etc.)
 - `references/eval-llm-judge.md` — LLM-as-judge evaluation for prompts
-- `references/multi-file.md` — Extracting code from larger codebases
+- `references/multi-file.md` — Multi-file optimization with `--sources` and extraction patterns
 - `references/limitations.md` — When NOT to use Weco
 
 ---
