@@ -36,13 +36,13 @@ View optimization progress at: https://dashboard.weco.ai
 If an optimization is interrupted, resume it using the run ID:
 
 ```bash
-weco resume <run-id> --output plain --apply-change
+weco resume <run-id> --output plain
 ```
 
 Example:
 
 ```bash
-weco resume 0002e071-1b67-411f-a514-36947f0c4b31 --output plain --apply-change
+weco resume 0002e071-1b67-411f-a514-36947f0c4b31 --output plain
 ```
 
 The run ID can be found in:
@@ -55,7 +55,6 @@ The run ID can be found in:
 | Option | Description |
 |--------|-------------|
 | `run_id` | UUID of the run to resume (required, positional) |
-| `--apply-change` | Auto-apply best solution without prompting |
 | `--api-key` | Provide API keys for the run's model |
 | `--output` | `rich` (interactive) or `plain` (machine-readable) |
 

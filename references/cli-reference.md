@@ -32,12 +32,10 @@ metadata:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-n, --steps` | 100 | Number of optimization steps |
-| `-M, --model` | `o4-mini` | Model to use |
 | `-l, --log-dir` | `.runs` | Directory for logs and results |
 | `-i, --additional-instructions` | - | Extra guidance (text or file path) |
 | `--eval-timeout` | - | Timeout in seconds per evaluation |
 | `--save-logs` | false | Save step outputs to `.runs/<id>/outputs/` |
-| `--apply-change` | false | Auto-apply best solution |
 | `--require-review` | false | Require manual approval of each change |
 | `--api-key` | - | Provider API keys (see below) |
 | `--output` | `rich` | `rich` (interactive) or `plain` (machine-readable) |
@@ -64,7 +62,6 @@ weco resume <run-id> [options]
 | Option | Description |
 |--------|-------------|
 | `run_id` | UUID of the run (required, positional) |
-| `--apply-change` | Auto-apply best solution |
 | `--api-key` | Provider API keys |
 | `--output` | `rich` or `plain` |
 
@@ -85,8 +82,6 @@ weco logout  # Clear saved API key
 
 ## Supported Models
 
-Default: `o4-mini`
-
 See full list at: https://docs.weco.ai/cli/supported-models
 
 ## Example: Full Command
@@ -98,9 +93,7 @@ weco run \
   --metric speedup \
   --goal maximize \
   --steps 50 \
-  --model claude-sonnet-4-5 \
   --output plain \
-  --apply-change \
   --save-logs \
   --eval-timeout 300 \
   --additional-instructions "Focus on vectorization and SIMD"

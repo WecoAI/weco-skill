@@ -19,8 +19,7 @@ weco run --sources model.py utils.py config.py \
   --metric accuracy \
   --goal maximize \
   --steps 10 \
-  --output plain \
-  --apply-change
+  --output plain
 ```
 
 Weco will optimize all specified files simultaneously, allowing changes across file boundaries.
@@ -74,8 +73,7 @@ weco run --sources .weco/<task>/model.py .weco/<task>/utils.py \
   --eval-command "bash .weco/<task>/evaluate.sh" \
   --metric speedup \
   --goal maximize \
-  --output plain \
-  --apply-change
+  --output plain
 ```
 
 ### Evaluation script for multi-file

@@ -13,8 +13,7 @@ weco run \
   --eval-command "bash .weco/evaluate.sh" \
   --metric speedup \
   --goal maximize \
-  --output plain \
-  --apply-change
+  --output plain
 ```
 
 ## Required Options
@@ -32,9 +31,7 @@ weco run \
 | Option | Description |
 |--------|-------------|
 | `-n, --steps` | Number of optimization steps (default: 100) |
-| `-M, --model` | Model to use (default: `o4-mini`) |
 | `--output plain` | Machine-readable output (MUST use for automation) |
-| `--apply-change` | Auto-apply best solution without prompting |
 
 ## Examples
 
@@ -47,9 +44,7 @@ weco run \
   --metric accuracy \
   --goal maximize \
   --steps 50 \
-  --model claude-sonnet-4-5 \
-  --output plain \
-  --apply-change
+  --output plain
 ```
 
 ### With additional instructions
@@ -61,7 +56,6 @@ weco run \
   --metric accuracy \
   --goal maximize \
   --output plain \
-  --apply-change \
   --additional-instructions "Focus on feature engineering and ensemble methods"
 ```
 
@@ -74,7 +68,6 @@ weco run \
   --metric speedup \
   --goal maximize \
   --output plain \
-  --apply-change \
   --eval-timeout 3600
 ```
 
@@ -87,7 +80,6 @@ weco run \
   --metric speedup \
   --goal maximize \
   --output plain \
-  --apply-change \
   --save-logs
 ```
 
@@ -101,8 +93,7 @@ weco run \
   --eval-command "bash .weco/evaluate.sh" \
   --metric accuracy \
   --goal maximize \
-  --output plain \
-  --apply-change
+  --output plain
 ```
 
 ### Interactive mode with manual review
@@ -125,7 +116,6 @@ weco run \
   --metric speedup \
   --goal maximize \
   --output plain \
-  --apply-change \
   > .weco/run.log 2>&1 &
 
 echo $! > .weco/run.pid

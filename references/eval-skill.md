@@ -1202,8 +1202,7 @@ weco run \
   --eval-command "bash .weco/task/evaluate.sh" \
   --metric skill_quality \
   --goal maximize \
-  --steps 10 \
-  --apply-change
+  --steps 10
 
 # 4. Validate on held-out (single eval)
 python validate_holdout.py
@@ -1230,8 +1229,7 @@ weco run \
   --eval-command "bash .weco/task/evaluate.sh" \
   --metric skill_quality \
   --goal maximize \
-  --steps 10 \
-  --apply-change
+  --steps 10
 ```
 
 ## Evaluation Structure

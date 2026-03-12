@@ -95,16 +95,6 @@ weco run ... --output plain
 
 The `plain` mode produces machine-readable output suitable for log parsing and automation. The `rich` mode is for interactive terminal use only.
 
-## Apply Changes
-
-Use `--apply-change` to automatically apply the best solution:
-
-```bash
-weco run ... --apply-change
-```
-
-Without this flag, Weco will prompt for confirmation before applying changes.
-
 ## Reviewing Optimization Output
 
 Weco-generated code has not been reviewed. Before applying changes:
