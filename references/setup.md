@@ -19,6 +19,8 @@ weco credits balance
 
 If this succeeds, Weco is ready to use.
 
+If authentication fails, run `weco login` directly rather than asking the user to run it in a separate terminal.
+
 ## Install Weco CLI
 
 If not installed, download and run the official installer. Always ask the user for confirmation before executing downloaded scripts.

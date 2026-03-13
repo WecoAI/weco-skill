@@ -282,9 +282,13 @@ If found, ask:
 ### Step 4: Setup Files
 
 ```bash
-# Check weco is available
+# Check weco is available and authenticated
 which weco && weco credits balance
+```
 
+If `weco credits balance` fails with an authentication error, run `weco login` to authenticate. This opens a browser for the user to complete login. Do NOT tell the user to run it manually — just run it yourself.
+
+```bash
 # Create task directory (if using .weco/)
 WECO_TASK="<inferred_task_name>"
 mkdir -p .weco/$WECO_TASK
