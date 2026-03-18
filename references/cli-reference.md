@@ -14,6 +14,8 @@ metadata:
 | `weco login` | Authenticate via browser |
 | `weco logout` | Clear saved API key |
 | `weco credits` | Manage credits (balance, topup, autotopup) |
+| `weco observe init` | Create a new observed run |
+| `weco observe log` | Log a step to an observed run |
 
 ## weco run
 
@@ -71,6 +73,60 @@ weco resume <run-id> [options]
 weco credits balance     # Check current balance
 weco credits topup       # Purchase additional credits
 weco credits autotopup   # Configure automatic top-up
+```
+
+## weco observe
+
+Track experiments manually with Weco Observe. Authenticate using `weco login` if needed.
+
+### weco observe init
+
+Create a new observed run. Returns the run ID.
+
+```bash
+WECO_RUN_ID=$(weco observe init --name "<run-name>" --metric <metric> --goal <min|max> --source <file>)
+```
+
+| Option | Description |
+|--------|-------------|
+| `--name` | Name for the run |
+| `--metric` | Metric name to track |
+| `--goal` | `min` or `max` |
+| `--source` | Path to source file (captures baseline code as step 0) |
+
+### weco observe log
+
+Log a step result to an observed run.
+
+```bash
+weco observe log \
+  --run-id "$WECO_RUN_ID" \
+  --step <N> \
+  --status <completed|failed> \
+  --description "<what you tried>" \
+  --metrics '{"<metric>": <value>}' \
+  --source <file>
+```
+
+| Option | Description |
+|--------|-------------|
+| `--run-id` | Run ID from `observe init` |
+| `--step` | Step number (0 for baseline, then 1, 2, 3, ...) |
+| `--status` | `completed` or `failed` (for discarded/crashed experiments) |
+| `--description` | What was tried in this step |
+| `--metrics` | JSON object with metric values |
+| `--source` | Path to source file at this step |
+| `--parent-step` | Optional. Parent step to branch from. If omitted, chains to the last successful step. |
+
+### Branching
+
+If a step fails and you revert, use `--parent-step` to branch from the correct ancestor:
+
+```bash
+# Step 3 failed — step 4 branches from step 2 (not 3)
+weco observe log --run-id "$WECO_RUN_ID" --step 4 --parent-step 2 \
+  --status completed --description "<what you tried>" \
+  --metrics '{"<metric>": <value>}' --source <file>
 ```
 
 ## weco login / logout

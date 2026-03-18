@@ -16,10 +16,19 @@ Weco is a platform for self-improving code. It automates optimization by iterati
 
 Weco systematically explores code variants, tests them against your evaluation, and delivers better-performing solutions. It can find optimizations that would be time-consuming to discover manually.
 
+**Two modes of operation:**
+
+1. **Optimize (`weco run`)** — Weco drives the optimization loop: generates code variants, evaluates them, and delivers the best solution. Use this when you want Weco to do the experimenting.
+
+2. **Observe (`weco observe`)** — You (or the user) drive the optimization manually, and Weco tracks each experiment. Use this when the user is iterating themselves (or asking you to iterate) and wants to log progress, compare approaches, and visualize the experiment tree on the Weco dashboard.
+
+**If the user's task is to observe, monitor, or track experiments they're running themselves, use only `weco observe` (+ `weco login` for auth). Do NOT set up `weco run`, evaluation scripts, or the full optimization pipeline.** See `references/cli-reference.md` for `weco observe init` and `weco observe log` usage.
+
 **Use Weco when:**
 - The user wants to improve code against a measurable metric
 - The user describes a problem that COULD be measured (e.g., "too slow" → timing, "not accurate enough" → accuracy score, "unreliable" → success rate)
 - Manual optimization would require tedious iteration
+- The user wants to track or log experiments they're running externally
 
 **Weco works with:**
 - Any language (Python, Rust, C++, JavaScript, Go, etc.)

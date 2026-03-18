@@ -16,12 +16,19 @@ This skill teaches your AI coding assistant how to use [Weco](https://weco.ai) f
 
 ### Recommended: Weco CLI
 
-The easiest way to install is via the [Weco CLI](https://weco.ai/docs/cli), which sets up the skill and trigger rules for your agent:
+The easiest way to install is via the [Weco CLI](https://weco.ai/docs/cli), which sets up the skill and trigger rules for your agent.
+
+**Install the CLI:**
 
 ```bash
-pip install weco
-weco install cursor   # For Cursor
-weco install claude   # For Claude Code
+pipx install weco
+```
+
+**Install the skill:**
+
+```bash
+weco setup cursor       # For Cursor
+weco setup claude-code  # For Claude Code
 ```
 
 ### Cursor Plugin
@@ -41,7 +48,7 @@ Install the skill using the Agent Skills CLI:
 npx skills add weco-ai/weco-skill
 ```
 
-This installs the skill directory (SKILL.md, CLAUDE.md, references, assets). For Cursor, this relies on the skill description for activation — for the always-on trigger rule, use `weco install cursor` instead.
+This installs the skill directory (SKILL.md, CLAUDE.md, references, assets). For Cursor, this relies on the skill description for activation — for the always-on trigger rule, use `weco setup cursor` instead.
 
 ### Manual install: install.sh
 
@@ -68,7 +75,7 @@ The installer will ask which AI assistant you use (Claude Code, Cursor, or both)
     └── ...
 ```
 
-**Cursor (via `weco install cursor` or `install.sh`):**
+**Cursor (via `weco setup cursor` or `install.sh`):**
 ```
 ~/.cursor/
 ├── rules/

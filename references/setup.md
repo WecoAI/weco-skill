@@ -23,28 +23,10 @@ If authentication fails, run `weco login` directly rather than asking the user t
 
 ## Install Weco CLI
 
-If not installed, download and run the official installer. Always ask the user for confirmation before executing downloaded scripts.
-
-**macOS / Linux:**
+If not installed:
 
 ```bash
-# Step 1: Download the installer
-curl -fsSL https://weco.ai/install.sh -o /tmp/weco-install.sh
-
-# Step 2: Execute (requires user approval)
-sh /tmp/weco-install.sh
-```
-
-> **Before running**, tell the user: "I've downloaded the Weco installer to `/tmp/weco-install.sh`. Shall I proceed with running it?"
-
-**Windows (PowerShell):**
-
-```powershell
-# Step 1: Download the installer
-Invoke-WebRequest -Uri https://weco.ai/install.ps1 -OutFile $env:TEMP\weco-install.ps1
-
-# Step 2: Execute (requires user approval)
-& $env:TEMP\weco-install.ps1
+pipx install weco
 ```
 
 ## Authenticate
