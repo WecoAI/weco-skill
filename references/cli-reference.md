@@ -112,7 +112,7 @@ weco observe log \
 |--------|-------------|
 | `--run-id` | Run ID from `observe init` |
 | `--step` | Step number (0 for baseline, then 1, 2, 3, ...) |
-| `--status` | `completed` or `failed` (for discarded/crashed experiments) |
+| `--status` | `completed` or `failed`. Only use `failed` for buggy steps that produced no valid metric (crashes, errors). Steps that ran successfully but had worse results should be `completed`. |
 | `--description` | What was tried in this step |
 | `--metrics` | JSON object with metric values |
 | `--source` | Path to source file at this step |
@@ -120,7 +120,7 @@ weco observe log \
 
 ### Branching
 
-If a step fails and you revert, use `--parent-step` to branch from the correct ancestor:
+If a step crashed (no result) and you revert, use `--parent-step` to branch from the correct ancestor:
 
 ```bash
 # Step 3 failed — step 4 branches from step 2 (not 3)
