@@ -31,33 +31,6 @@ weco setup cursor       # For Cursor
 weco setup claude-code  # For Claude Code
 ```
 
-### Cursor Plugin
-
-Install directly from the [Cursor marketplace](https://cursor.com/marketplace):
-
-1. Open Cursor
-2. Go to **Settings > Plugins**
-3. Search for **"weco"**
-4. Click **Install**
-
-### Quick install: npx
-
-Install the skill using the Agent Skills CLI:
-
-```bash
-npx skills add weco-ai/weco-skill
-```
-
-This installs the skill directory (SKILL.md, CLAUDE.md, references, assets). For Cursor, this relies on the skill description for activation — for the always-on trigger rule, use `weco setup cursor` instead.
-
-### Manual install: install.sh
-
-```bash
-./install.sh
-```
-
-The installer will ask which AI assistant you use (Claude Code, Cursor, or both) and set up the skill with trigger rules accordingly.
-
 ### What Gets Installed
 
 **Claude Code:**
@@ -75,11 +48,9 @@ The installer will ask which AI assistant you use (Claude Code, Cursor, or both)
     └── ...
 ```
 
-**Cursor (via `weco setup cursor` or `install.sh`):**
+**Cursor:**
 ```
 ~/.cursor/
-├── rules/
-│   └── weco.mdc           # Always-on trigger rule
 └── skills/
     └── weco/
         ├── SKILL.md       # Full optimization workflow
@@ -91,10 +62,10 @@ The installer will ask which AI assistant you use (Claude Code, Cursor, or both)
 
 Once installed, just ask your AI assistant to optimize code:
 
-- "Make this function faster"
-- "Optimize this for speed"
-- "Improve the accuracy of this model"
-- "Reduce the latency"
+- "Make this function faster using /weco"
+- "Optimize this for speed using /weco"
+- "Improve the accuracy of this model using /weco"
+- "Reduce the latency using /weco"
 
 The skill offers two modes:
 
