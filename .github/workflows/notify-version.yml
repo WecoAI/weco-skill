@@ -12,11 +12,11 @@ jobs:
         env: [dev, prod]
         include:
           - env: dev
-            url: https://dev.api.weco.ai/v1/internal/skill-version
-            secret_name: SKILL_VERSION_SECRET_DEV
+            url_secret: SKILL_VERSION_API_URL_DEV
+            key_secret: SKILL_VERSION_SECRET_DEV
           - env: prod
-            url: https://api.weco.ai/v1/internal/skill-version
-            secret_name: SKILL_VERSION_SECRET_PROD
+            url_secret: SKILL_VERSION_API_URL_PROD
+            key_secret: SKILL_VERSION_SECRET_PROD
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
             --arg version "$(cat VERSION)" \
             --arg branch "${GITHUB_REF_NAME}" \
             '{commit: $commit, version: $version, source_branch: $branch}' \
-          | curl -sf -X POST "${{ matrix.url }}" \
+          | curl -sf -X POST "${{ secrets[matrix.url_secret] }}" \
               -H "Content-Type: application/json" \
-              -H "X-Internal-Secret: ${{ secrets[matrix.secret_name] }}" \
+              -H "X-Internal-Secret: ${{ secrets[matrix.key_secret] }}" \
               -d @-
