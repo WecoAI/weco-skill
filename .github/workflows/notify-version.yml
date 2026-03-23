@@ -1,0 +1,34 @@
+name: Notify API of new skill version
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [dev, prod]
+        include:
+          - env: dev
+            url: https://dev.api.weco.ai/v1/internal/skill-version
+            secret_name: SKILL_VERSION_SECRET_DEV
+          - env: prod
+            url: https://api.weco.ai/v1/internal/skill-version
+            secret_name: SKILL_VERSION_SECRET_PROD
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Notify ${{ matrix.env }} API
+        run: |
+          jq -n \
+            --arg commit "${{ github.sha }}" \
+            --arg version "$(cat VERSION)" \
+            --arg branch "${GITHUB_REF_NAME}" \
+            '{commit: $commit, version: $version, source_branch: $branch}' \
+          | curl -sf -X POST "${{ matrix.url }}" \
+              -H "Content-Type: application/json" \
+              -H "X-Internal-Secret: ${{ secrets[matrix.secret_name] }}" \
+              -d @-
