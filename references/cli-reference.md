@@ -96,7 +96,7 @@ WECO_RUN_ID=$(weco observe init --name "<run-name>" --metric <metric> --goal <mi
 
 ### weco observe log
 
-Log a step result to an observed run.
+Log a step result to an observed run. **Only log steps that ran successfully and produced a metric***
 
 ```bash
 weco observe log \
