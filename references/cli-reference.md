@@ -102,7 +102,6 @@ Log a step result to an observed run.
 weco observe log \
   --run-id "$WECO_RUN_ID" \
   --step <N> \
-  --status <completed|failed> \
   --description "<what you tried>" \
   --metrics '{"<metric>": <value>}' \
   --source <file>
@@ -112,7 +111,6 @@ weco observe log \
 |--------|-------------|
 | `--run-id` | Run ID from `observe init` |
 | `--step` | Step number (0 for baseline, then 1, 2, 3, ...) |
-| `--status` | `completed` or `failed`. Only use `failed` for buggy steps that produced no valid metric (crashes, errors). Steps that ran successfully but had worse results should be `completed`. |
 | `--description` | What was tried in this step |
 | `--metrics` | JSON object with metric values |
 | `--source` | Path to source file at this step |
