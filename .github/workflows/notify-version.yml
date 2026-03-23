@@ -3,6 +3,7 @@ name: Notify API of new skill version
 on:
   push:
     branches: [main]
+    paths: [VERSION]
 
 jobs:
   notify:
