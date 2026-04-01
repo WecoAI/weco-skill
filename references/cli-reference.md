@@ -164,7 +164,7 @@ Returns JSON with: `run_id`, `require_review`, `pending_nodes` (each with `node_
 
 ## weco run revise
 
-Replace a pending node's code with a new revision. Use when you want to modify AIDE's proposed solution before evaluation.
+Replace a pending node's code with a new revision. Use when you want to modify Weco's proposed solution before evaluation.
 
 ```bash
 weco run revise <run-id> --node <node-id> --source <file>
@@ -178,7 +178,7 @@ The backend auto-generates a plan from the code diff. The node's head revision i
 Submit a pending approval node for local evaluation and report results back to the optimizer. This is how agents interact with review-mode runs.
 
 ```bash
-# Accept AIDE's proposal as-is and evaluate it
+# Accept Weco's proposal as-is and evaluate it
 weco run submit <run-id> --node <node-id>
 
 # Replace code and evaluate in one step (revise + submit)
@@ -206,7 +206,7 @@ weco run --require-review --output plain ...
 weco run status <run-id>       # pending_nodes field
 weco run review <run-id>       # detailed view with code + plan
 
-# 3a. Accept AIDE's proposal
+# 3a. Accept Weco's proposal
 weco run submit <run-id> --node <node-id>
 
 # 3b. Or replace with your own code and submit
@@ -215,7 +215,7 @@ weco run submit <run-id> --node <node-id> --source <file>
 # 3c. If the stored eval command doesn't work locally
 weco run submit <run-id> --node <node-id> --eval-command "bash .weco/task/evaluate.sh"
 
-# 4. AIDE generates next candidate → repeat from step 2
+# 4. Weco generates next candidate → repeat from step 2
 ```
 
 ## weco credits
