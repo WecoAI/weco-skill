@@ -1,31 +1,74 @@
 ---
 name: monitor
-description: Monitor progress and resume interrupted runs
+description: Monitor progress, steer, and resume runs
 metadata:
-  tags: monitor, progress, resume, logs, dashboard
+  tags: monitor, progress, resume, logs, dashboard, status, results
 ---
 
-## Check if Running
+## Check Run Status
 
 ```bash
-ps -p $(cat .weco/run.pid) > /dev/null 2>&1 && echo "Running" || echo "Finished"
+weco run status <run-id>
 ```
 
-## View Output
+Returns JSON with: `run_id`, `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, `metric_name`, `goal`, `model`, `require_review`, `pending_nodes`.
+
+## View Results
 
 ```bash
-# Latest 50 lines
-tail -50 .weco/run.log
+# Top results sorted by metric
+weco run results <run-id> --top 5 --format json
 
-# Follow live output
-tail -f .weco/run.log
+# ASCII metric trajectory
+weco run results <run-id> --plot
+
+# Export as CSV
+weco run results <run-id> --format csv > trajectory.csv
+
+# Include full source code
+weco run results <run-id> --top 3 --include-code
+```
+
+## Inspect a Step
+
+```bash
+# Show details for a specific step
+weco run show <run-id> --step 3
+
+# Show details for the best step
+weco run show <run-id> --step best
+```
+
+Returns JSON with: `step`, `metric`, `plan`, `code`, `parent_step`, `node_id`, `status`, `is_buggy`.
+
+## View Diffs
+
+```bash
+# Diff best solution against baseline
+weco run diff <run-id> --step best
+
+# Diff against parent step
+weco run diff <run-id> --step 5 --against parent
+
+# Diff against a specific step
+weco run diff <run-id> --step 5 --against 2
+```
+
+## Steer a Running Optimization
+
+Update the optimizer's instructions mid-run:
+
+```bash
+weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
 ```
 
 ## Stop a Run
 
 ```bash
-kill $(cat .weco/run.pid)
+weco run stop <run-id>
 ```
+
+Terminates gracefully. Solution tree is preserved — resume later with `weco resume`.
 
 ## Dashboard
 
@@ -37,12 +80,6 @@ If an optimization is interrupted, resume it using the run ID:
 
 ```bash
 weco resume <run-id> --output plain
-```
-
-Example:
-
-```bash
-weco resume 0002e071-1b67-411f-a514-36947f0c4b31 --output plain
 ```
 
 The run ID can be found in:

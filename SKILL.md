@@ -345,7 +345,7 @@ Create an evaluation script based on the inferred goal. Use sensible defaults:
 
 Write the evaluation script and wrapper automatically.
 
-### Step 7: Run Optimization with Async Monitoring
+### Step 7: Run Optimization
 
 **Start Weco as a background task (use `run_in_background`):**
 
@@ -376,23 +376,29 @@ Use `--sources` when the optimization spans multiple tightly coupled files. Weco
 
 Set `run_in_background: true` on this Bash command. This returns a task ID you can check with `TaskOutput` without needing repeated bash permissions.
 
-**Actively monitor and fix issues while running:**
+**Save the run ID** from the weco output — you'll need it for status checks, steering, and results.
 
-You MUST monitor the run autonomously in a loop. **DO NOT stop to ask the user questions or wait for feedback** unless you hit a decision that truly requires their input. Just keep checking, fixing, and reporting progress.
+### Step 8: Monitor and Steer the Run
 
-Use `TaskOutput` with `block: false` to check progress without permission prompts:
+**Use `weco run status` to check progress:**
+
+```bash
+weco run status <run-id>
+```
+
+Returns JSON with `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, and `pending_nodes`. Use this as your primary progress check.
+
+**Also check `TaskOutput`** to scan for evaluation errors:
 
 ```
 TaskOutput(task_id: "<task_id_from_background_bash>", block: false)
 ```
 
-This returns the current output without blocking. Check every 30-60 seconds until the task completes.
-
 ---
 
 **⚠️ CRITICAL: SCAN OUTPUT FOR ERRORS. ACT IMMEDIATELY WHEN YOU SEE THEM. ⚠️**
 
-Every time you check `TaskOutput`, **actively scan for these error patterns**:
+Every time you check output, **actively scan for these error patterns**:
 
 - `ModuleNotFoundError: No module named 'X'`
 - `ImportError: cannot import name`
@@ -401,7 +407,7 @@ Every time you check `TaskOutput`, **actively scan for these error patterns**:
 
 **When you see `ModuleNotFoundError` or `ImportError` or equivalent in other language:**
 
-You MUST attempt to install the missing dependency using the appropriate method. ASK THE USER TO CONFIRM INSTALLATION E.g. for a Python project you might have something like `pip install <package>` or `uv pip install <package>`
+You MUST attempt to install the missing dependency using the appropriate method. ASK THE USER TO CONFIRM INSTALLATION. E.g. for a Python project you might have something like `pip install <package>` or `uv pip install <package>`
 
 Do NOT:
 - Summarize the error and keep monitoring
@@ -432,27 +438,36 @@ After installing, the next Weco step picks up the fix automatically.
 
 Keep cycling through these steps without waiting for user input:
 
-1. Check output: `TaskOutput(task_id, block: false)`
-2. If running + no errors → brief progress update, check again in 30-60s
-3. If error → ask user to confirm fix (e.g. install missing package), then check again
-4. If finished → proceed to results
-5. **Continue monitoring automatically** — provide brief progress updates to the user at each check
+1. Check status: `weco run status <run-id>` for structured progress
+2. Check `TaskOutput(task_id, block: false)` to scan for eval errors
+3. If running + no errors → brief progress update, check again in 30-60s
+4. If error → ask user to confirm fix (e.g. install missing package), then check again
+5. If finished → proceed to results
+6. **Continue monitoring automatically** — provide brief progress updates to the user at each check
 
 Only stop the loop to ask the user if:
 - You need to choose between fundamentally different approaches
 - A constraint is ambiguous and you can't make a reasonable default choice
 - The run failed completely and you need guidance on next steps
 
-**When to stop and restart instead:**
+**Steering mid-run:**
 
-If the same error keeps repeating across multiple steps (Weco keeps generating incompatible code), stop the run and restart with constraints:
+You can update the optimizer's instructions while a run is active:
 
+```bash
+weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
 ```
-# Stop the background task
-TaskStop(task_id: "<task_id>")
 
-# Restart with constraints (as new background task)
-weco run ... --additional-instructions "Do NOT use: transformers, torch, multi_class parameter. sklearn only."
+**Stopping a run:**
+
+If the same error keeps repeating across multiple steps, or you need to change strategy:
+
+```bash
+# Stop gracefully (preserves solution tree, can resume later)
+weco run stop <run-id>
+
+# Restart with constraints
+weco run ... --additional-instructions "Do NOT use: transformers, torch. sklearn only."
 ```
 
 **Provide narrative progress:**
@@ -460,26 +475,39 @@ weco run ... --additional-instructions "Do NOT use: transformers, torch, multi_c
 As you monitor, update the user on progress:
 
 ```
-🔬 Optimization running...
+Optimization running...
 
 Step 1/5: Baseline measured at 142ms
 Step 2/5: Trying loop unrolling... 98ms (1.4x faster)
-  ⚠️ Missing 'numpy' - installing now...
-  ✓ Installed, continuing
-Step 3/5: Trying vectorization... 44ms (3.2x faster!) ← new best
+  Missing 'numpy' - installing now...
+  Installed, continuing
+Step 3/5: Trying vectorization... 44ms (3.2x faster!) <- new best
 Step 4/5: Cache optimization... 48ms (no improvement)
 Step 5/5: Finalizing...
 
-✓ Complete: 3.2x speedup
+Complete: 3.2x speedup
 ```
 
-### Step 8: Celebrate Wins Dramatically
+### Step 9: Present Results
 
-When optimization completes, make it feel like an achievement:
+When optimization completes, use `weco run results` and `weco run diff` to gather details:
 
-> "🎉 **Optimization complete!**
+```bash
+# Get top results sorted by metric
+weco run results <run-id> --top 5 --format json
+
+# Get the diff of the best solution against baseline
+weco run diff <run-id> --step best
+
+# Get full details of the best step (including code)
+weco run show <run-id> --step best
+```
+
+Present results dramatically:
+
+> "Optimization complete!
 >
-> **Result: 3.2x speedup** (142ms → 44ms per call)
+> **Result: 3.2x speedup** (142ms -> 44ms per call)
 >
 > **What this means for you:**
 > - At 10,000 calls/day, you'll save **23 minutes of compute time daily**
@@ -494,7 +522,7 @@ When optimization completes, make it feel like an achievement:
 >
 > Full report saved to `.weco/<task>/report.md`"
 
-### Step 9: Ask Before Applying
+### Step 10: Ask Before Applying
 
 **Always ask before modifying project files:**
 
@@ -506,6 +534,12 @@ When optimization completes, make it feel like an achievement:
 > 4. **Something else**: Tell me what you'd prefer
 >
 > I recommend running your test suite after applying."
+
+If user chooses "Review first", use:
+
+```bash
+weco run diff <run-id> --step best
+```
 
 ---
 
@@ -717,7 +751,7 @@ weco run \
 
 Iterate until aligned, then proceed to full run.
 
-### Phase 8: Full Optimization with Async Monitoring
+### Phase 8: Full Optimization with Monitoring
 
 **Start Weco as a background task (use `run_in_background`):**
 
@@ -748,23 +782,21 @@ Use `--sources` when the optimization spans multiple tightly coupled files. Weco
 
 Set `run_in_background: true` on this Bash command. This returns a task ID you can check with `TaskOutput` without needing repeated bash permissions.
 
-**Actively monitor and fix issues while running:**
+**Save the run ID** from the weco output — you'll need it for status checks, steering, and results.
 
-You MUST monitor the run autonomously in a loop. **DO NOT stop to ask the user questions or wait for feedback** unless you hit a decision that truly requires their input. Just keep checking, fixing, and reporting progress.
+**Monitor with `weco run status` and `TaskOutput`:**
 
-Use `TaskOutput` with `block: false` to check progress without permission prompts:
-
-```
-TaskOutput(task_id: "<task_id_from_background_bash>", block: false)
+```bash
+weco run status <run-id>
 ```
 
-This returns the current output without blocking. Check every 30-60 seconds until the task completes.
+Returns JSON with `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, and `pending_nodes`. Use this as your primary progress check. Also check `TaskOutput(task_id, block: false)` to scan for evaluation errors.
 
 ---
 
 **⚠️ CRITICAL: SCAN OUTPUT FOR ERRORS. ACT IMMEDIATELY WHEN YOU SEE THEM. ⚠️**
 
-Every time you check `TaskOutput`, **actively scan for these error patterns**:
+Every time you check output, **actively scan for these error patterns**:
 
 - `ModuleNotFoundError: No module named 'X'`
 - `ImportError: cannot import name`
@@ -804,60 +836,84 @@ After installing, the next Weco step picks up the fix automatically.
 
 Keep cycling through these steps without waiting for user input:
 
-1. Check output: `TaskOutput(task_id, block: false)`
-2. If running + no errors → brief progress update, check again in 30-60s
-3. If error → ask user to confirm fix (e.g. install missing package), then check again
-4. If finished → proceed to results
-5. **Continue monitoring automatically** — provide brief progress updates to the user at each check
+1. Check status: `weco run status <run-id>` for structured progress
+2. Check `TaskOutput(task_id, block: false)` to scan for eval errors
+3. If running + no errors → brief progress update, check again in 30-60s
+4. If error → ask user to confirm fix (e.g. install missing package), then check again
+5. If finished → proceed to results
+6. **Continue monitoring automatically** — provide brief progress updates to the user at each check
 
 Only stop the loop to ask the user if:
 - You need to choose between fundamentally different approaches
 - A constraint is ambiguous and you can't make a reasonable default choice
 - The run failed completely and you need guidance on next steps
 
-**Provide detailed narrative updates with issue resolution:**
+**Steering mid-run:**
 
-```
-🔬 Optimization in progress...
+You can update the optimizer's instructions while a run is active:
 
-Step 1/5: Analyzing baseline
-  → Current: 847ms per call
-  → Bottleneck identified: nested loops in matrix computation
-
-Step 2/5: Attempting loop fusion
-  → Result: 612ms (1.4x improvement)
-  → Why: Reduced memory bandwidth by processing data in single pass
-
-Step 3/5: Attempting vectorization
-  ⚠️ Missing 'numba' - installing now...
-  ✓ Installed numba, step retrying
-  → Result: 203ms (4.2x improvement) ← new best!
-  → Why: JIT compilation eliminated interpreter overhead
-
-Step 4/5: Attempting GPU offload
-  → Result: 187ms (4.5x improvement) ← new best!
-  → Why: Massive parallelism for matrix ops
-
-Step 5/5: Attempting mixed precision
-  → Result: 201ms (no improvement)
-  → Why: Precision loss affected correctness check
-
-✓ Best result: 4.5x speedup using GPU offload
+```bash
+weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
 ```
 
-**When to stop and restart instead:**
+Discuss with the user before steering: "The optimizer seems to be exploring X heavily. Should I steer it toward Y instead?"
+
+**Stopping a run:**
 
 If the same error keeps repeating (Weco generates incompatible code each time), stop and add constraints:
 
 ```bash
-# Stop the run
-kill $(cat .weco/$WECO_TASK/run.pid)
+# Stop gracefully (preserves solution tree, can resume later)
+weco run stop <run-id>
 
 # Restart with constraints
-weco run ... --additional-instructions "Do NOT use: transformers, torch, multi_class parameter. sklearn only."
+weco run ... --additional-instructions "Do NOT use: transformers, torch. sklearn only."
+```
+
+**Provide detailed narrative updates with issue resolution:**
+
+```
+Optimization in progress...
+
+Step 1/5: Analyzing baseline
+  Current: 847ms per call
+  Bottleneck identified: nested loops in matrix computation
+
+Step 2/5: Attempting loop fusion
+  Result: 612ms (1.4x improvement)
+  Why: Reduced memory bandwidth by processing data in single pass
+
+Step 3/5: Attempting vectorization
+  Missing 'numba' - installing now...
+  Installed numba, step retrying
+  Result: 203ms (4.2x improvement) <- new best!
+  Why: JIT compilation eliminated interpreter overhead
+
+Step 4/5: Attempting GPU offload
+  Result: 187ms (4.5x improvement) <- new best!
+  Why: Massive parallelism for matrix ops
+
+Step 5/5: Attempting mixed precision
+  Result: 201ms (no improvement)
+  Why: Precision loss affected correctness check
+
+Best result: 4.5x speedup using GPU offload
 ```
 
 ### Phase 9: Results, Report, and Insights
+
+Use `weco run results` and `weco run diff` to gather details:
+
+```bash
+# Get top results sorted by metric
+weco run results <run-id> --top 5 --format json
+
+# Get the diff of the best solution against baseline
+weco run diff <run-id> --step best
+
+# Get full details of the best step (including code)
+weco run show <run-id> --step best
+```
 
 Generate comprehensive report at `.weco/<task>/report.md`:
 
@@ -945,6 +1001,12 @@ result = cp.asnumpy(cp.dot(weights_gpu, inputs_gpu))
 > 2. **Review first**: I'll show you a diff of the changes
 > 3. **Keep separate**: Leave in `.weco/<task>/` for now
 > 4. **Something else**: Tell me what you'd prefer"
+
+If user chooses "Review first", use:
+
+```bash
+weco run diff <run-id> --step best
+```
 
 If refactoring was done (consolidated from multiple files):
 

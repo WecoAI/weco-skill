@@ -9,7 +9,16 @@ metadata:
 
 | Command | Description |
 |---------|-------------|
-| `weco run` | Run code optimization |
+| `weco run` | Start a new optimization |
+| `weco run status` | Show run status and progress (JSON) |
+| `weco run results` | Show results sorted by metric |
+| `weco run show` | Show details for a specific step/node |
+| `weco run diff` | Show code diff between steps |
+| `weco run stop` | Terminate a running optimization |
+| `weco run instruct` | Update additional instructions mid-run |
+| `weco run review` | Show pending approval nodes (review mode) |
+| `weco run revise` | Replace a pending node's code |
+| `weco run submit` | Submit a pending node for evaluation |
 | `weco resume` | Resume an interrupted run |
 | `weco login` | Authenticate via browser |
 | `weco logout` | Clear saved API key |
@@ -49,7 +58,7 @@ metadata:
 ```
 
 Supported providers and their default models:
-- `gemini` → `gemini-3-pro-preview`
+- `gemini` → `gemini-3.1-pro-preview`
 - `openai` → `o4-mini`
 - `anthropic` → `claude-opus-4-5`
 
@@ -66,6 +75,148 @@ weco resume <run-id> [options]
 | `run_id` | UUID of the run (required, positional) |
 | `--api-key` | Provider API keys |
 | `--output` | `rich` or `plain` |
+
+## weco run status
+
+Show run status and progress as JSON. Use for mid-run health checks.
+
+```bash
+weco run status <run-id>
+```
+
+Returns JSON with: `run_id`, `status`, `name`, `current_step`, `total_steps`, `best_metric`, `best_step`, `metric_name`, `goal`, `model`, `require_review`, `pending_nodes`.
+
+## weco run results
+
+Show run results sorted by metric. The primary command for structured result access.
+
+```bash
+weco run results <run-id> [options]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--top` | all | Show only top N results |
+| `--format` | `json` | `json`, `table`, or `csv` |
+| `--plot` | false | Append ASCII sparkline trajectory |
+| `--include-code` | false | Include full source code in output |
+
+Examples:
+
+```bash
+weco run results <run-id> --top 5 --format json
+weco run results <run-id> --plot
+weco run results <run-id> --format csv > trajectory.csv
+```
+
+## weco run show
+
+Show details for a specific step/node.
+
+```bash
+weco run show <run-id> --step <N|best>
+```
+
+Returns JSON with: `step`, `metric`, `plan`, `code`, `parent_step`, `node_id`, `status`, `is_buggy`.
+
+## weco run diff
+
+Show unified code diff between steps.
+
+```bash
+weco run diff <run-id> --step <N|best> [--against <baseline|parent|step_number>]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--step` | (required) | Step number or `best` |
+| `--against` | `baseline` | Compare against: `baseline` (step 0), `parent`, or a step number |
+
+## weco run stop
+
+Terminate a running optimization gracefully. Solution tree is preserved and the run can be resumed.
+
+```bash
+weco run stop <run-id>
+```
+
+Returns JSON with: `run_id`, `status`, `best_metric`, `best_step`.
+
+## weco run instruct
+
+Update additional instructions for an active run. The optimizer uses these to guide subsequent steps.
+
+```bash
+weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
+```
+
+Returns JSON with: `run_id`, `additional_instructions`.
+
+## weco run review
+
+Show nodes awaiting action (pending approval or evaluation).
+
+```bash
+weco run review <run-id>
+```
+
+Returns JSON with: `run_id`, `require_review`, `pending_nodes` (each with `node_id`, `step`, `plan`, `code`).
+
+## weco run revise
+
+Replace a pending node's code with a new revision. Use when you want to modify AIDE's proposed solution before evaluation.
+
+```bash
+weco run revise <run-id> --node <node-id> --source <file>
+weco run revise <run-id> --node <node-id> --sources <file1> <file2>
+```
+
+The backend auto-generates a plan from the code diff. The node's head revision is updated.
+
+## weco run submit
+
+Submit a pending approval node for local evaluation and report results back to the optimizer. This is how agents interact with review-mode runs.
+
+```bash
+# Accept AIDE's proposal as-is and evaluate it
+weco run submit <run-id> --node <node-id>
+
+# Replace code and evaluate in one step (revise + submit)
+weco run submit <run-id> --node <node-id> --source <file>
+
+# Override the eval command (when the stored command doesn't match this environment)
+weco run submit <run-id> --node <node-id> --eval-command "bash .weco/task/evaluate.sh"
+```
+
+| Option | Description |
+|--------|-------------|
+| `--node` | Node ID to submit (required) |
+| `--source` / `--sources` | Optional: provide code (creates revision before submitting) |
+| `-c, --eval-command` | Override the eval command stored in the run |
+
+The command: submits the node → claims the execution task → runs the eval command locally → reports the result. Returns JSON with `status` (`"submitted"` or `"eval_failed"`), `metric`, `node_id`, `run_completed` (true when all steps are done), and `execution_output`.
+
+### Review Mode Workflow
+
+```bash
+# 1. Start a run in review mode
+weco run --require-review --output plain ...
+
+# 2. Check for unevaluated nodes
+weco run status <run-id>       # pending_nodes field
+weco run review <run-id>       # detailed view with code + plan
+
+# 3a. Accept AIDE's proposal
+weco run submit <run-id> --node <node-id>
+
+# 3b. Or replace with your own code and submit
+weco run submit <run-id> --node <node-id> --source <file>
+
+# 3c. If the stored eval command doesn't work locally
+weco run submit <run-id> --node <node-id> --eval-command "bash .weco/task/evaluate.sh"
+
+# 4. AIDE generates next candidate → repeat from step 2
+```
 
 ## weco credits
 
