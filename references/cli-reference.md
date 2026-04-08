@@ -14,6 +14,7 @@ metadata:
 | `weco run results` | Show results sorted by metric |
 | `weco run show` | Show details for a specific step/node |
 | `weco run diff` | Show code diff between steps |
+| `weco run derive` | Create a new run derived from an existing step |
 | `weco run stop` | Terminate a running optimization |
 | `weco run instruct` | Update additional instructions mid-run |
 | `weco run review` | Show pending approval nodes (review mode) |
@@ -132,6 +133,27 @@ weco run diff <run-id> --step <N|best> [--against <baseline|parent|step_number>]
 | `--step` | (required) | Step number or `best` |
 | `--against` | `baseline` | Compare against: `baseline` (step 0), `parent`, or a step number |
 
+## weco run derive
+
+Create a new optimization run derived from a specific step in an existing run. The new run inherits the selected step's code as its baseline (step 0) without re-evaluating it, then starts exploring a new direction with fresh LLM context from step 1.
+
+```bash
+weco run derive <run-id> --from-step best -i "Focus on memory efficiency" --output plain
+```
+
+| Option | Description |
+|--------|-------------|
+| `run_id` | Parent run UUID (required, positional) |
+| `--from-step` | `best` (default: lineage-best = global best across ALL runs in the lineage), `run-best` (best in the specified run only), or a step number |
+| `-i, --additional-instructions` | Steering instructions for the new run (inline text or path to a file). If omitted, the parent run's instructions are inherited. |
+| `-n, --steps` | Override step count for the derived run |
+| `--api-key` | API keys in `provider=key` format |
+| `--output` | `rich` (default) or `plain` for machine-readable output |
+
+The parent run is automatically stopped. Step 0 in the derived run is inherited (no re-evaluation), so no compute is wasted. The first real candidate is step 1.
+
+Returns JSON with: `run_id`, `run_name`, `lineage_id`, `derived_from`.
+
 ## weco run stop
 
 Terminate a running optimization gracefully. Solution tree is preserved and the run can be resumed.
@@ -144,7 +166,7 @@ Returns JSON with: `run_id`, `status`, `best_metric`, `best_step`.
 
 ## weco run instruct
 
-Update additional instructions for an active run. The optimizer uses these to guide subsequent steps.
+Update additional instructions for an active run. **Prefer `weco run derive` for steering** — it gives the optimizer a fresh context and inherits the best solution. Use `instruct` only for minor guidance tweaks that don't warrant a new run.
 
 ```bash
 weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"

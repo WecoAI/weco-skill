@@ -442,32 +442,29 @@ Keep cycling through these steps without waiting for user input:
 2. Check `TaskOutput(task_id, block: false)` to scan for eval errors
 3. If running + no errors → brief progress update, check again in 30-60s
 4. If error → ask user to confirm fix (e.g. install missing package), then check again
-5. If finished → proceed to results
+5. If finished → present results and ask if the user would like to try a different approach
 6. **Continue monitoring automatically** — provide brief progress updates to the user at each check
 
 Only stop the loop to ask the user if:
-- You need to choose between fundamentally different approaches
 - A constraint is ambiguous and you can't make a reasonable default choice
 - The run failed completely and you need guidance on next steps
 
-**Steering mid-run:**
+**Steering — use `weco run derive`:**
 
-You can update the optimizer's instructions while a run is active:
+When the user wants to try a different approach, add constraints, or continue exploring, use `weco run derive`. Derive inherits the best solution across the entire lineage as step 0 (no wasted re-evaluation), stops the current run, and gives the optimizer a fresh context from step 1. Pass steering text via `-i` (omit it to inherit the parent run's instructions unchanged):
 
 ```bash
-weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
+weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
 ```
 
-**Stopping a run:**
+Set `run_in_background: true` on the derive command — it creates the new run and enters the optimization loop immediately. See `references/derive.md` for full details.
 
-If the same error keeps repeating across multiple steps, or you need to change strategy:
+**Stopping a run (without deriving):**
+
+Use `weco run stop` when the user wants to abort entirely, or you need to fix the evaluation script:
 
 ```bash
-# Stop gracefully (preserves solution tree, can resume later)
 weco run stop <run-id>
-
-# Restart with constraints
-weco run ... --additional-instructions "Do NOT use: transformers, torch. sklearn only."
 ```
 
 **Provide narrative progress:**
@@ -840,34 +837,29 @@ Keep cycling through these steps without waiting for user input:
 2. Check `TaskOutput(task_id, block: false)` to scan for eval errors
 3. If running + no errors → brief progress update, check again in 30-60s
 4. If error → ask user to confirm fix (e.g. install missing package), then check again
-5. If finished → proceed to results
+5. If finished → present results and ask if the user would like to try a different approach
 6. **Continue monitoring automatically** — provide brief progress updates to the user at each check
 
 Only stop the loop to ask the user if:
-- You need to choose between fundamentally different approaches
 - A constraint is ambiguous and you can't make a reasonable default choice
 - The run failed completely and you need guidance on next steps
 
-**Steering mid-run:**
+**Steering — use `weco run derive`:**
 
-You can update the optimizer's instructions while a run is active:
+When the user wants to try a different approach, add constraints, or continue exploring, use `weco run derive`. Derive inherits the best solution across the entire lineage (no wasted re-evaluation) and gives the optimizer fresh context. Pass steering text via `-i` (omit it to inherit the parent run's instructions unchanged):
 
 ```bash
-weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
+weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
 ```
 
-Discuss with the user before steering: "The optimizer seems to be exploring X heavily. Should I steer it toward Y instead?"
+Set `run_in_background: true` — derive stops the current run, creates a new one, and enters the optimization loop immediately. See `references/derive.md` for details.
 
-**Stopping a run:**
+**Stopping a run (without deriving):**
 
-If the same error keeps repeating (Weco generates incompatible code each time), stop and add constraints:
+Use `weco run stop` when the user wants to abort entirely, or the evaluation script needs fixing:
 
 ```bash
-# Stop gracefully (preserves solution tree, can resume later)
 weco run stop <run-id>
-
-# Restart with constraints
-weco run ... --additional-instructions "Do NOT use: transformers, torch. sklearn only."
 ```
 
 **Provide detailed narrative updates with issue resolution:**

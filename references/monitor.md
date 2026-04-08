@@ -54,13 +54,48 @@ weco run diff <run-id> --step 5 --against parent
 weco run diff <run-id> --step 5 --against 2
 ```
 
-## Steer a Running Optimization
+## Steer the Optimization (Derive)
 
-Update the optimizer's instructions mid-run:
+When a run completes, stagnates, or you want to explore a different direction, **derive** a new run. This is the primary steering mechanism — it inherits the best solution, stops the current run, and gives the optimizer fresh context:
+
+Pass steering text via `-i / --additional-instructions` (inline text or path to a file). If omitted, the parent run's instructions are inherited unchanged.
 
 ```bash
-weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
+# Derive from the lineage-best step (global best across ALL runs in the lineage — default)
+weco run derive <run-id> --from-step best -i "Focus on memory-efficient data structures" --output plain
+
+# Derive from the best step in just this run
+weco run derive <run-id> --from-step run-best -i "Try a different optimizer entirely" --output plain
+
+# Derive from a specific step
+weco run derive <run-id> --from-step 7 -i "Explore vectorization" --output plain
+
+# Derive with more steps
+weco run derive <run-id> --from-step best -i "Explore vectorization" --steps 50 --output plain
 ```
+
+Creates a new run using the specified step's code as an inherited baseline (step 0). The inherited baseline is not re-evaluated — no compute is wasted re-measuring a known-good solution. The first real candidate is step 1. The new run gets fresh LLM context. The parent run is stopped automatically. The new run enters the optimization loop immediately.
+
+`--from-step best` finds the **global best across all runs** in the lineage, not just the specified run. Use `--from-step run-best` to derive from the best step in just the specified run.
+
+Returns JSON with: `run_id`, `run_name`, `lineage_id`, `derived_from` (run_id, step, node_id).
+
+**When to derive:**
+- User says "try a different approach" or "focus on X"
+- User adds constraints: "don't use Y", "only use Z"
+- User wants to continue after completion: "keep going", "try more"
+- User wants to branch: "try both approaches"
+
+### Derive Options
+
+| Option | Description |
+|--------|-------------|
+| `run_id` | Parent run UUID (required, positional) |
+| `--from-step` | `best` (default: lineage-best = global best across ALL runs), `run-best` (best in the specified run only), or a step number |
+| `-i, --additional-instructions` | Steering instructions for the new run (inline text or path to a file). If omitted, the parent run's instructions are inherited. |
+| `-n, --steps` | Override step count |
+| `--api-key` | API keys in `provider=key` format |
+| `--output` | `rich` (interactive) or `plain` (machine-readable) |
 
 ## Stop a Run
 
