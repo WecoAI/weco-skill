@@ -9,12 +9,15 @@ metadata:
 
 A **derived run** is a new optimization run whose baseline code comes from the best solution in the current lineage. All runs in a derivation chain share a **lineage** — a persistent record that tracks ancestry and the global best solution across every run.
 
-Derive is the **primary steering mechanism** for Weco optimization. Instead of tweaking instructions mid-run or stopping and restarting from scratch, derive gives the optimizer a clean slate to explore a new direction from the best known solution — with full lineage tracking.
+Derive is the **primary steering mechanism** for Weco optimization — and the preferred way to redirect a run, **whether it has completed or is still running**. Don't wait for a running run to finish before steering it, and don't restart from scratch: derive immediately. It inherits the best known solution as a clean baseline, gives the optimizer fresh context for the new direction, and tracks full lineage.
+
+Prefer derive over `weco run instruct` (which edits instructions on a live run without resetting context). Reach for `instruct` only for a minor nudge that doesn't warrant a new direction; for any real change of approach or constraint, derive.
 
 ## When to Derive
 
 - User says "try a different approach", "focus on X", "keep going"
 - User adds constraints: "don't use Y", "only use Z"
+- User wants to redirect a run **that is currently mid-optimization** — derive now, no need to wait for it to finish or to stop it first (derive stops it for you)
 - User wants to continue after a run completes: "try more steps", "explore further"
 - User wants to branch: "try both approaches"
 
@@ -54,7 +57,7 @@ weco run derive <run-id> --from-step best --output plain
 
 ### What Happens
 
-1. The parent run is stopped automatically
+1. **The parent run is stopped automatically** — if it is still running, deriving cancels its in-flight evaluation, interrupts any active candidates, and sets it to `stopping`. You do **not** need to call `weco run stop` first; derive handles it. (This is the default behaviour and is not configurable from the CLI.)
 2. A new run is created with the selected step's code as its **inherited baseline** (step 0)
 3. Step 0 is inherited — no re-evaluation is performed, so no compute is wasted re-measuring a known-good solution
 4. The first real candidate in the new run is step 1
@@ -91,13 +94,17 @@ GET /v1/lineages/{lineage_id}
 
 ## Agent Workflow
 
-When a run completes, present the results and ask if the user would like to try a different approach. When the user gives a direction, derive immediately.
+Derive whenever the user gives a new direction — you don't need to wait for the run to finish first.
 
-1. **Run completes** → present results, ask if they'd like to explore further
-2. **User gives direction** → `weco run derive <run-id> --from-step best -i "..." --output plain` with `run_in_background: true`
-3. **Monitor** → same monitoring loop as any other run
+- **Run is still running** and the user wants to change direction or add a constraint → derive immediately. Derive stops the running search for you (cancels the in-flight step, sets the parent to `stopping`), so there's no separate stop step.
+- **Run has completed** → present results, ask if they'd like to explore further; when they give a direction, derive.
 
-The user doesn't need to know about run IDs or lineage mechanics. From their perspective, you're just "trying a different approach." The run boundaries are an implementation detail.
+In both cases:
+
+1. **User gives a direction** → `weco run derive <run-id> --from-step best -i "..." --output plain` with `run_in_background: true`
+2. **Monitor** → same monitoring loop as any other run
+
+The user doesn't need to know about run IDs, the parent being stopped, or lineage mechanics. From their perspective, you're just "trying a different approach." The run boundaries are an implementation detail.
 
 ### Example Conversations
 

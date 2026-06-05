@@ -388,6 +388,8 @@ weco run status <run-id>
 
 Returns JSON with `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, and `pending_nodes`. Use this as your primary progress check.
 
+**Never watch a run with a blocking or streaming command** (`tail -f`, `Monitor`, `watch`, following the log). Those pin you to the run and make you unresponsive — use only the quick `weco run status` poll above (it returns immediately) plus a non-blocking `TaskOutput`.
+
 **Also check `TaskOutput`** to scan for evaluation errors:
 
 ```
@@ -434,24 +436,26 @@ Do NOT continue to the next monitoring cycle without attempting the install.
 
 After installing, the next Weco step picks up the fix automatically.
 
-**Autonomous monitoring loop - DO NOT STOP:**
+**Monitoring loop — stay responsive, never block:**
 
-Keep cycling through these steps without waiting for user input:
+Each cycle is a quick, non-blocking poll, so you hand control back between cycles instead of sitting on a blocking watch. Keep monitoring automatically — but a user message ALWAYS takes priority over the next poll:
 
-1. Check status: `weco run status <run-id>` for structured progress
+1. Check status: `weco run status <run-id>` for structured progress (heed its `agent_guidance` field)
 2. Check `TaskOutput(task_id, block: false)` to scan for eval errors
-3. If running + no errors → brief progress update, check again in 30-60s
-4. If error → ask user to confirm fix (e.g. install missing package), then check again
-5. If finished → present results and ask if the user would like to try a different approach
-6. **Continue monitoring automatically** — provide brief progress updates to the user at each check
+3. **Has the user said anything? If so, handle it before polling again** — acknowledge, then act: steer with `weco run derive` (works mid-run, no need to stop first), abort with `weco run stop`, or answer their question
+4. If running + no errors → brief progress update, then check again in 30-60s
+5. If error → ask user to confirm fix (e.g. install missing package), then check again
+6. If finished → present results and ask if the user would like to try a different approach
 
-Only stop the loop to ask the user if:
+"Autonomous" means the user shouldn't have to drive each poll — NOT that you ignore them. Never watch a run with a blocking/streaming command (`tail -f`, `Monitor`, `watch`, following the log): it pins you to the run and makes you deaf to the user.
+
+Only fully pause the loop to ask the user if:
 - A constraint is ambiguous and you can't make a reasonable default choice
 - The run failed completely and you need guidance on next steps
 
 **Steering — use `weco run derive`:**
 
-When the user wants to try a different approach, add constraints, or continue exploring, use `weco run derive`. Derive inherits the best solution across the entire lineage as step 0 (no wasted re-evaluation), stops the current run, and gives the optimizer a fresh context from step 1. Pass steering text via `-i` (omit it to inherit the parent run's instructions unchanged):
+When the user wants to try a different approach, add constraints, or continue exploring, use `weco run derive` — **even if the run is still running**. Don't wait for it to finish or stop it first: derive automatically stops the current run (cancels the in-flight step, interrupts active candidates), inherits the best solution across the entire lineage as step 0 (no wasted re-evaluation), and gives the optimizer a fresh context from step 1. Prefer this over `weco run instruct`, which only tweaks instructions on a live run without resetting context. Pass steering text via `-i` (omit it to inherit the parent run's instructions unchanged):
 
 ```bash
 weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
@@ -789,6 +793,8 @@ weco run status <run-id>
 
 Returns JSON with `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, and `pending_nodes`. Use this as your primary progress check. Also check `TaskOutput(task_id, block: false)` to scan for evaluation errors.
 
+**Never watch a run with a blocking or streaming command** (`tail -f`, `Monitor`, `watch`, following the log). Those pin you to the run and make you unresponsive to the user. Use only the quick `weco run status` poll (it returns immediately) plus the non-blocking `TaskOutput` above.
+
 ---
 
 **⚠️ CRITICAL: SCAN OUTPUT FOR ERRORS. ACT IMMEDIATELY WHEN YOU SEE THEM. ⚠️**
@@ -829,30 +835,32 @@ Do NOT continue to the next monitoring cycle without attempting the install.
 
 After installing, the next Weco step picks up the fix automatically.
 
-**Autonomous monitoring loop - DO NOT STOP:**
+**Monitoring loop — stay responsive, never block:**
 
-Keep cycling through these steps without waiting for user input:
+Each cycle is a quick, non-blocking poll, so you hand control back between cycles instead of sitting on a blocking watch. Keep monitoring automatically — but a user message ALWAYS takes priority over the next poll:
 
-1. Check status: `weco run status <run-id>` for structured progress
+1. Check status: `weco run status <run-id>` for structured progress (heed its `agent_guidance` field)
 2. Check `TaskOutput(task_id, block: false)` to scan for eval errors
-3. If running + no errors → brief progress update, check again in 30-60s
-4. If error → ask user to confirm fix (e.g. install missing package), then check again
-5. If finished → present results and ask if the user would like to try a different approach
-6. **Continue monitoring automatically** — provide brief progress updates to the user at each check
+3. **Has the user said anything? If so, handle it before polling again** — acknowledge, then act: steer with `weco run derive` (works mid-run, no need to stop first), abort with `weco run stop`, or answer their question
+4. If running + no errors → brief progress update, then check again in 30-60s
+5. If error → ask user to confirm fix (e.g. install missing package), then check again
+6. If finished → present results and ask if the user would like to try a different approach
 
-Only stop the loop to ask the user if:
+"Autonomous" means the user shouldn't have to drive each poll — NOT that you ignore them. Never watch a run with a blocking/streaming command (`tail -f`, `Monitor`, `watch`, following the log): it pins you to the run and makes you deaf to the user.
+
+Only fully pause the loop to ask the user if:
 - A constraint is ambiguous and you can't make a reasonable default choice
 - The run failed completely and you need guidance on next steps
 
 **Steering — use `weco run derive`:**
 
-When the user wants to try a different approach, add constraints, or continue exploring, use `weco run derive`. Derive inherits the best solution across the entire lineage (no wasted re-evaluation) and gives the optimizer fresh context. Pass steering text via `-i` (omit it to inherit the parent run's instructions unchanged):
+When the user wants to try a different approach, add constraints, or continue exploring, use `weco run derive` — **even if the run is still running**. Don't wait for it to finish or stop it first. Derive inherits the best solution across the entire lineage (no wasted re-evaluation) and gives the optimizer fresh context. Prefer it over `weco run instruct`, which only tweaks instructions on a live run without resetting context. Pass steering text via `-i` (omit it to inherit the parent run's instructions unchanged):
 
 ```bash
 weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
 ```
 
-Set `run_in_background: true` — derive stops the current run, creates a new one, and enters the optimization loop immediately. See `references/derive.md` for details.
+Set `run_in_background: true` — derive automatically stops the current run (cancels the in-flight step, interrupts active candidates), creates a new one, and enters the optimization loop immediately. See `references/derive.md` for details.
 
 **Stopping a run (without deriving):**
 

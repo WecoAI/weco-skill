@@ -56,7 +56,7 @@ weco run diff <run-id> --step 5 --against 2
 
 ## Steer the Optimization (Derive)
 
-When a run completes, stagnates, or you want to explore a different direction, **derive** a new run. This is the primary steering mechanism — it inherits the best solution, stops the current run, and gives the optimizer fresh context:
+To steer a run — whether it has **completed** or is **still running** — **derive** a new run. This is the primary steering mechanism and the preferred choice for redirecting a run in flight: don't wait for it to finish or stop it manually first. Derive inherits the best solution, **stops the current run automatically** (cancels the in-flight step, interrupts active candidates), and gives the optimizer fresh context. Prefer it over `weco run instruct`, which only edits instructions on a live run without resetting context — use `instruct` only for a minor nudge.
 
 Pass steering text via `-i / --additional-instructions` (inline text or path to a file). If omitted, the parent run's instructions are inherited unchanged.
 
@@ -83,6 +83,7 @@ Returns JSON with: `run_id`, `run_name`, `lineage_id`, `derived_from` (run_id, s
 **When to derive:**
 - User says "try a different approach" or "focus on X"
 - User adds constraints: "don't use Y", "only use Z"
+- User wants to redirect a run **that is still running** — derive now; it stops the current search for you
 - User wants to continue after completion: "keep going", "try more"
 - User wants to branch: "try both approaches"
 

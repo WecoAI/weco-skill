@@ -14,9 +14,9 @@ metadata:
 | `weco run results` | Show results sorted by metric |
 | `weco run show` | Show details for a specific step/node |
 | `weco run diff` | Show code diff between steps |
-| `weco run derive` | Create a new run derived from an existing step |
+| `weco run derive` | Create a new run derived from an existing step (**preferred for steering**) |
 | `weco run stop` | Terminate a running optimization |
-| `weco run instruct` | Update additional instructions mid-run |
+| `weco run instruct` | Tweak instructions on a live run (minor nudges only — prefer `derive`) |
 | `weco run review` | Show pending approval nodes (review mode) |
 | `weco run revise` | Replace a pending node's code |
 | `weco run submit` | Submit a pending node for evaluation |
@@ -166,7 +166,9 @@ Returns JSON with: `run_id`, `status`, `best_metric`, `best_step`.
 
 ## weco run instruct
 
-Update additional instructions for an active run. **Prefer `weco run derive` for steering** — it gives the optimizer a fresh context and inherits the best solution. Use `instruct` only for minor guidance tweaks that don't warrant a new run.
+Update additional instructions for an active run, in place — the run keeps its accumulated context and applies the new instructions from the next step.
+
+**Prefer `weco run derive` for steering, not `instruct`.** Derive resets the optimizer's context and inherits the best solution, so it cleanly redirects toward a new approach; `instruct` only layers a note onto a run that's already committed to its current trajectory. Reach for `instruct` only when the change is a minor nudge ("also keep the API stable") that doesn't warrant a new direction. For any real change of approach or constraint, derive.
 
 ```bash
 weco run instruct <run-id> "Focus on memory optimization, avoid changing the API"
