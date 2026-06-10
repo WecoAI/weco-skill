@@ -1,0 +1,35 @@
+name: Notify API of new skill version
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [dev, prod]
+        include:
+          - env: dev
+            url_secret: SKILL_VERSION_API_URL_DEV
+            key_secret: SKILL_VERSION_SECRET_DEV
+          - env: prod
+            url_secret: SKILL_VERSION_API_URL_PROD
+            key_secret: SKILL_VERSION_SECRET_PROD
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Notify ${{ matrix.env }} API
+        run: |
+          jq -n \
+            --arg commit "${{ github.sha }}" \
+            --arg version "$(cat VERSION)" \
+            --arg branch "${GITHUB_REF_NAME}" \
+            '{commit: $commit, version: $version, source_branch: $branch}' \
+          | curl -sf -X POST "${{ secrets[matrix.url_secret] }}" \
+              -H "Content-Type: application/json" \
+              -H "X-Internal-Secret: ${{ secrets[matrix.key_secret] }}" \
+              -d @-

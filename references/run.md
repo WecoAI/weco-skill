@@ -1,0 +1,128 @@
+---
+name: run
+description: Execute optimization with weco run
+metadata:
+  tags: run, execute, optimization, steps, model
+---
+
+## Basic Usage
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric speedup \
+  --goal maximize \
+  --output plain
+```
+
+## Required Options
+
+| Option | Description |
+|--------|-------------|
+| `-s, --source` | Path to a single source file to optimize (mutually exclusive with `--sources`) |
+| `--sources` | Paths to multiple source files to optimize together (mutually exclusive with `-s`). Max 10 files, 200 KB each, 500 KB total. |
+| `-c, --eval-command` | Command to run for evaluation |
+| `-m, --metric` | Metric name printed by eval command |
+| `-g, --goal` | `maximize` or `minimize` |
+
+## Common Options
+
+| Option | Description |
+|--------|-------------|
+| `-n, --steps` | Number of optimization steps (default: 100) |
+| `--output plain` | Machine-readable output (MUST use for automation) |
+
+## Examples
+
+### With custom steps and model
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric accuracy \
+  --goal maximize \
+  --steps 50 \
+  --output plain
+```
+
+### With additional instructions
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric accuracy \
+  --goal maximize \
+  --output plain \
+  --additional-instructions "Focus on feature engineering and ensemble methods"
+```
+
+### With evaluation timeout
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric speedup \
+  --goal maximize \
+  --output plain \
+  --eval-timeout 3600
+```
+
+### Save detailed logs
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric speedup \
+  --goal maximize \
+  --output plain \
+  --save-logs
+```
+
+Logs saved to `.runs/<run-id>/outputs/step_<n>.out.txt`
+
+### Multi-file optimization
+
+```bash
+weco run \
+  --sources .weco/model.py .weco/utils.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric accuracy \
+  --goal maximize \
+  --output plain
+```
+
+### Interactive mode with manual review
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric speedup \
+  --goal maximize \
+  --require-review
+```
+
+## Running in Background
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric speedup \
+  --goal maximize \
+  --output plain \
+  > .weco/run.log 2>&1 &
+
+echo $! > .weco/run.pid
+```
+
+Monitor with:
+
+```bash
+tail -f .weco/run.log
+```
