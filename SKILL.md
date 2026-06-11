@@ -396,6 +396,8 @@ Returns JSON with `status`, `current_step`, `total_steps`, `best_metric`, `best_
 TaskOutput(task_id: "<task_id_from_background_bash>", block: false)
 ```
 
+`TaskOutput` must always use `block: false`. **Never set `block: true` or pass a `timeout`** — that turns it into a blocking watch and pins you to the run, exactly like `tail -f`. Poll, read, hand control back.
+
 ---
 
 **⚠️ CRITICAL: SCAN OUTPUT FOR ERRORS. ACT IMMEDIATELY WHEN YOU SEE THEM. ⚠️**
@@ -462,6 +464,8 @@ weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
 ```
 
 Set `run_in_background: true` on the derive command — it creates the new run and enters the optimization loop immediately. See `references/derive.md` for full details.
+
+**Dashboard derive requests:** the user can also compose derived runs in the dashboard ("Explore a new path"). You'll receive a `[Dashboard derive request]` message listing the exact `weco run derive` commands — launch each one as a background task without waiting between them (the first becomes the lineage's evaluation consumer; the rest attach behind it), then report the new run IDs and add them ALL to your monitoring loop.
 
 **Stopping a run (without deriving):**
 
@@ -791,7 +795,7 @@ Set `run_in_background: true` on this Bash command. This returns a task ID you c
 weco run status <run-id>
 ```
 
-Returns JSON with `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, and `pending_nodes`. Use this as your primary progress check. Also check `TaskOutput(task_id, block: false)` to scan for evaluation errors.
+Returns JSON with `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, and `pending_nodes`. Use this as your primary progress check. Also check `TaskOutput(task_id, block: false)` to scan for evaluation errors. `TaskOutput` must always use `block: false` — **never set `block: true` or pass a `timeout`**, which turns it into a blocking watch that pins you to the run, exactly like `tail -f`.
 
 **Never watch a run with a blocking or streaming command** (`tail -f`, `Monitor`, `watch`, following the log). Those pin you to the run and make you unresponsive to the user. Use only the quick `weco run status` poll (it returns immediately) plus the non-blocking `TaskOutput` above.
 
@@ -861,6 +865,8 @@ weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
 ```
 
 Set `run_in_background: true` — derive automatically stops the current run (cancels the in-flight step, interrupts active candidates), creates a new one, and enters the optimization loop immediately. See `references/derive.md` for details.
+
+**Dashboard derive requests:** the user can also compose derived runs in the dashboard ("Explore a new path"). You'll receive a `[Dashboard derive request]` message listing the exact `weco run derive` commands — launch each one as a background task without waiting between them (the first becomes the lineage's evaluation consumer; the rest attach behind it), then report the new run IDs and add them ALL to your monitoring loop.
 
 **Stopping a run (without deriving):**
 

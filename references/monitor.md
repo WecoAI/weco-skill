@@ -87,6 +87,8 @@ Returns JSON with: `run_id`, `run_name`, `lineage_id`, `derived_from` (run_id, s
 - User wants to continue after completion: "keep going", "try more"
 - User wants to branch: "try both approaches"
 
+**Dashboard derive requests:** the user can also compose derived runs in the dashboard ("Explore a new path"), possibly several in parallel. You'll receive a `[Dashboard derive request]` message listing the exact `weco run derive` commands — launch each one as a background task without waiting between them (the first becomes the lineage's evaluation consumer; the rest attach and queue behind it), then report the new run IDs and add them ALL to your monitoring loop (`weco run status <run-id>` for each, non-blocking; report bests/completions across the set).
+
 ### Derive Options
 
 | Option | Description |
