@@ -465,7 +465,7 @@ weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
 
 Set `run_in_background: true` on the derive command — it creates the new run and enters the optimization loop immediately. See `references/derive.md` for full details.
 
-**Dashboard derive requests:** the user can also compose derived runs in the dashboard ("Explore a new path"). You'll receive a `[Dashboard derive request]` message listing the exact `weco run derive` commands — launch each one as a background task without waiting between them (the first becomes the lineage's evaluation consumer; the rest attach behind it), then report the new run IDs and add them ALL to your monitoring loop.
+**Dashboard derive requests:** the user can also compose derived runs in the dashboard ("Explore a new path"). You'll receive a `[Dashboard derive request]` message listing the exact `weco run derive` commands — launch each one as a background task without waiting between them (the first becomes the lineage's evaluation consumer; the rest attach behind it), then report the new run IDs and add them ALL to your monitoring loop. With multiple runs in flight, use `weco run overview <run-id>` (any run in the lineage) to see the global best and tree across the whole set in one call, instead of polling each run separately.
 
 **Stopping a run (without deriving):**
 
@@ -866,7 +866,7 @@ weco run derive <run-id> --from-step best -i "<user's direction>" --output plain
 
 Set `run_in_background: true` — derive automatically stops the current run (cancels the in-flight step, interrupts active candidates), creates a new one, and enters the optimization loop immediately. See `references/derive.md` for details.
 
-**Dashboard derive requests:** the user can also compose derived runs in the dashboard ("Explore a new path"). You'll receive a `[Dashboard derive request]` message listing the exact `weco run derive` commands — launch each one as a background task without waiting between them (the first becomes the lineage's evaluation consumer; the rest attach behind it), then report the new run IDs and add them ALL to your monitoring loop.
+**Dashboard derive requests:** the user can also compose derived runs in the dashboard ("Explore a new path"). You'll receive a `[Dashboard derive request]` message listing the exact `weco run derive` commands — launch each one as a background task without waiting between them (the first becomes the lineage's evaluation consumer; the rest attach behind it), then report the new run IDs and add them ALL to your monitoring loop. With multiple runs in flight, use `weco run overview <run-id>` (any run in the lineage) to see the global best and tree across the whole set in one call, instead of polling each run separately.
 
 **Stopping a run (without deriving):**
 

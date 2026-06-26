@@ -13,6 +13,20 @@ weco run status <run-id>
 
 Returns JSON with: `run_id`, `status`, `current_step`, `total_steps`, `best_metric`, `best_step`, `metric_name`, `goal`, `model`, `require_review`, `pending_nodes`.
 
+Add `--lineage` to report aggregates **across all derived runs** in the lineage (effective status, global best, summed steps, pending nodes across every member) rather than just the named run.
+
+## Full Lineage Overview
+
+Once you've `derive`d (or the user has, via the dashboard), the related runs form a **lineage** — a tree of root + derived branches. The per-run commands above only see one run. To get the whole picture in one call — the same view the dashboard run page shows — use:
+
+```bash
+weco run overview <run-id>
+```
+
+Pass **any** run ID in the lineage. Returns JSON with: lineage aggregate (`status`, `best_metric`, `current_step`, `total_steps`, `member_count`, `active_member_count`), the **global best node across all runs** (`best`), the **member tree** (each with its branch point `derived_from`, per-member best, and `children`), and the full `global_step`-ordered `nodes` list. Add `--plot` for a lineage-wide trajectory, or `--include-code` to hydrate each node's plan/code.
+
+**Reach for `overview` whenever you've derived runs** — it's how you see the global best and where each branch came from, instead of polling each run ID blind.
+
 ## View Results
 
 ```bash
@@ -27,6 +41,9 @@ weco run results <run-id> --format csv > trajectory.csv
 
 # Include full source code
 weco run results <run-id> --top 3 --include-code
+
+# Rank across ALL derived runs in the lineage, not just this run
+weco run results <run-id> --top 5 --lineage
 ```
 
 ## Inspect a Step
@@ -35,11 +52,15 @@ weco run results <run-id> --top 3 --include-code
 # Show details for a specific step
 weco run show <run-id> --step 3
 
-# Show details for the best step
+# Show details for the best step (lineage-best — global best across ALL runs,
+# the same node `derive --from-step best` branches from)
 weco run show <run-id> --step best
+
+# Show the best step in just this run
+weco run show <run-id> --step run-best
 ```
 
-Returns JSON with: `step`, `metric`, `plan`, `code`, `parent_step`, `node_id`, `status`, `is_buggy`.
+Returns JSON with: `step`, `metric`, `plan`, `code`, `parent_step`, `node_id`, `status`, `is_buggy`. When `--step best` resolves to a node in a different run, the output also carries that run's `run_id`.
 
 ## View Diffs
 
