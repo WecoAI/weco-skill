@@ -121,8 +121,12 @@ weco run \
 echo $! > .weco/run.pid
 ```
 
-Monitor with:
+Monitor with a quick, non-blocking poll — **never** a blocking watch:
 
 ```bash
-tail -f .weco/run.log
+# Snapshot the latest output, then hand control back. Do NOT use `tail -f`.
+tail -n 40 .weco/run.log
+weco run status <run-id>
 ```
+
+When the run is launched as a Claude Code background task (`run_in_background: true`), check it with `TaskOutput(task_id, block: false)` instead — always `block: false`, never `block: true` or a `timeout`. A blocking watch (`tail -f`, `block: true`, `Monitor`, `watch`) pins you to the run and makes you unresponsive to the user.

@@ -11,6 +11,7 @@ metadata:
 |---------|-------------|
 | `weco run` | Start a new optimization |
 | `weco run status` | Show run status and progress (JSON) |
+| `weco run overview` | Show the full lineage picture — tree, global best, all derived runs (dashboard parity) |
 | `weco run results` | Show results sorted by metric |
 | `weco run show` | Show details for a specific step/node |
 | `weco run diff` | Show code diff between steps |
@@ -87,6 +88,25 @@ weco run status <run-id>
 
 Returns JSON with: `run_id`, `status`, `name`, `current_step`, `total_steps`, `best_metric`, `best_step`, `metric_name`, `goal`, `model`, `require_review`, `pending_nodes`.
 
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--lineage` | false | Report aggregates across all derived runs in the lineage, not just this run |
+
+## weco run overview
+
+Show the full **lineage** picture in one call — the same view the dashboard run page shows. Pass any run ID in the lineage. Use this whenever runs have been derived: it's how you see the global best and the tree, instead of polling each run ID separately.
+
+```bash
+weco run overview <run-id> [--include-code] [--plot]
+```
+
+Returns JSON with: lineage aggregate (`status`, `best_metric`, `current_step`, `total_steps`, `member_count`, `active_member_count`), `best` (global best node across all runs), `members` (tree — each with `derived_from` branch point, per-member best, `children`), and `nodes` (full `global_step`-ordered list with `summary_title`).
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--include-code` | false | Hydrate each node's plan and source code |
+| `--plot` | false | Append a lineage-wide ASCII trajectory |
+
 ## weco run results
 
 Show run results sorted by metric. The primary command for structured result access.
@@ -101,6 +121,7 @@ weco run results <run-id> [options]
 | `--format` | `json` | `json`, `table`, or `csv` |
 | `--plot` | false | Append ASCII sparkline trajectory |
 | `--include-code` | false | Include full source code in output |
+| `--lineage` | false | Rank across all derived runs in the lineage; adds `global_step` + `run_id` per row |
 
 Examples:
 
@@ -115,22 +136,22 @@ weco run results <run-id> --format csv > trajectory.csv
 Show details for a specific step/node.
 
 ```bash
-weco run show <run-id> --step <N|best>
+weco run show <run-id> --step <N|best|run-best>
 ```
 
-Returns JSON with: `step`, `metric`, `plan`, `code`, `parent_step`, `node_id`, `status`, `is_buggy`.
+`best` resolves the **lineage-best** (global best across all runs — same node `derive --from-step best` branches from); `run-best` is the best step within just this run. Returns JSON with: `step`, `metric`, `plan`, `code`, `parent_step`, `node_id`, `status`, `is_buggy` (plus `run_id` when `best` lands in a different run).
 
 ## weco run diff
 
 Show unified code diff between steps.
 
 ```bash
-weco run diff <run-id> --step <N|best> [--against <baseline|parent|step_number>]
+weco run diff <run-id> --step <N|best|run-best> [--against <baseline|parent|step_number>]
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--step` | (required) | Step number or `best` |
+| `--step` | (required) | Step number, `best` (lineage-best), or `run-best` (best in this run) |
 | `--against` | `baseline` | Compare against: `baseline` (step 0), `parent`, or a step number |
 
 ## weco run derive
