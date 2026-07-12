@@ -38,7 +38,7 @@ Weco optimizes ONE metric. You cannot directly optimize:
 ```python
 # Optimize accuracy, constrain latency
 if latency_ms > 100:
-    print("Constraint violated: latency exceeds 100ms")
+    raise SystemExit("Constraint violated: latency exceeds 100ms")
 print(f"accuracy: {accuracy:.4f}")
 ```
 

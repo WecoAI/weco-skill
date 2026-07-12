@@ -3,11 +3,20 @@
 IMPORTANT: Weco optimizes a SINGLE metric. This script should print exactly one
 metric in the format: metric_name: value (e.g., "speedup: 2.50")
 
-Constraint violations (correctness, memory limits, etc.) should be printed as
-regular messages - Weco will see them and avoid solutions that violate constraints.
+Constraint violations (correctness, memory limits, etc.) must exit non-zero
+before this evaluator prints the metric.
 """
-import time
+
 import importlib.util
+import math
+import sys
+import time
+
+
+def fail_constraint(message):
+    """Fail without emitting a metric that could score an invalid candidate."""
+    print(f"Constraint violated: {message}", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def load_module(path):
@@ -36,16 +45,17 @@ optimized = load_module(".weco/optimize.py")
 test_inputs = ()
 
 # =============================================================================
-# CORRECTNESS CHECK (constraint - print violations, don't use as metric)
+# CORRECTNESS CHECK (hard gate - do not emit a metric on failure)
 # =============================================================================
 # TODO: Replace TARGET_FUNCTION with your actual function name
 baseline_result = baseline.TARGET_FUNCTION(*test_inputs)
 optimized_result = optimized.TARGET_FUNCTION(*test_inputs)
+outputs_match = bool(baseline_result == optimized_result)
 
 # TODO: Adjust tolerance and comparison for your use case
 tolerance = 1e-5
-if baseline_result != optimized_result:  # or use: abs(baseline_result - optimized_result) > tolerance
-    print(f"Constraint violated: output differs from baseline (expected {baseline_result}, got {optimized_result})")
+if not outputs_match:  # or use: abs(baseline_result - optimized_result) <= tolerance
+    fail_constraint("optimized output differs from baseline")
 
 # =============================================================================
 # PERFORMANCE MEASUREMENT (the single metric to optimize)
@@ -54,4 +64,7 @@ baseline_time = benchmark(baseline.TARGET_FUNCTION, test_inputs)
 optimized_time = benchmark(optimized.TARGET_FUNCTION, test_inputs)
 
 speedup = baseline_time / optimized_time
+if not math.isfinite(speedup) or speedup <= 0:
+    fail_constraint("speedup must be finite and positive")
+
 print(f"speedup: {speedup:.4f}")

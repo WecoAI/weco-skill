@@ -3,8 +3,8 @@
 IMPORTANT: Weco optimizes a SINGLE metric. This script should print exactly one
 metric in the format: metric_name: value (e.g., "training_time: 5.23")
 
-Constraint violations (accuracy thresholds, etc.) should be printed as
-regular messages - Weco will see them and avoid solutions that violate constraints.
+Constraint violations (accuracy thresholds, etc.) must exit non-zero
+before this evaluator prints the metric.
 """
 import time
 import os
@@ -37,19 +37,19 @@ model = optimized.train_model()
 training_time = time.perf_counter() - start
 
 # =============================================================================
-# CONSTRAINT CHECKS (print violations as regular messages)
+# CONSTRAINT CHECKS (hard gates - do not emit a metric on failure)
 # =============================================================================
 # TODO: Add accuracy/quality constraints
 # Example: Check minimum accuracy requirement
 # accuracy = evaluate_model(model, X_test, y_test)
 # min_accuracy = 0.90
 # if accuracy < min_accuracy:
-#     print(f"Constraint violated: accuracy {accuracy:.2%} below {min_accuracy:.0%} threshold")
+#     raise SystemExit("Constraint violated: accuracy below minimum threshold")
 
 # Example: Verify model produces valid predictions
 # test_input = get_sample_input()
 # prediction = model.predict(test_input)
 # if prediction is None:
-#     print("Constraint violated: model prediction failed")
+#     raise SystemExit("Constraint violated: model prediction failed")
 
 print(f"training_time: {training_time:.4f}")

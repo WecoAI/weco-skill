@@ -40,7 +40,7 @@ training_time = time.perf_counter() - start
 # accuracy = evaluate_model(model, X_test, y_test)
 # min_accuracy = 0.90
 # if accuracy < min_accuracy:
-#     print(f"Constraint violated: accuracy {accuracy:.2%} below {min_accuracy:.0%}")
+#     raise SystemExit("Constraint violated: accuracy below minimum threshold")
 
 print(f"training_time: {training_time:.4f}")
 ```

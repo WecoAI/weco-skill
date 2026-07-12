@@ -591,7 +591,6 @@ def main():
     print("Validating model availability...", file=sys.stderr)
     if not validate_models(SKILL_MODEL, SIMULATOR_MODEL, INPUT_CHECK_MODEL, JUDGE_MODEL):
         print("Error: One or more models unavailable. Fix model config.", file=sys.stderr)
-        print("skill_quality: 0.00")
         sys.exit(1)
 
     # Check for references directory alongside the skill

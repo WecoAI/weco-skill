@@ -196,7 +196,6 @@ def judge_response(scenario, response):
 print("Validating model availability...", file=sys.stderr)
 if not validate_models(EXECUTION_MODEL, JUDGE_MODEL):
     print("Error: One or more models unavailable. Fix model config.", file=sys.stderr)
-    print("prompt_quality: 0.00")
     sys.exit(1)
 
 # Single evaluation - Weco handles optimization, validation handles rigor
@@ -896,4 +895,3 @@ python validate_holdout.py
 # 7. Accept and apply
 cp .weco/task/optimize.txt prompt.txt
 ```
-

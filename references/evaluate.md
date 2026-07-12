@@ -5,9 +5,10 @@ metadata:
   tags: evaluate, metric, output, format
 ---
 
-## Critical Requirement
+## Evaluation Result Contract
 
-The evaluation script MUST print the metric in this exact format:
+On success, the evaluation script MUST exit zero and print exactly one finite
+metric to stdout in this format:
 
 ```
 metric_name: value
@@ -23,17 +24,41 @@ training_time: 45.7821
 
 Weco parses this output to measure improvement.
 
+On any constraint violation, the evaluation script MUST:
+
+1. Print a diagnostic to stderr
+2. Exit non-zero immediately
+3. Print no metric
+
+Never replace a constraint failure with a fallback metric such as `0`, `-1`, or
+a large penalty. A fallback can accidentally become the winning value when the
+optimization direction or metric range changes.
+
 ## Constraint Violations
 
-Print constraint violations as regular messages (not in metric format). Weco will see these and avoid solutions that violate constraints:
+Treat constraints as hard gates. Stop at the first violation before measuring
+or printing the optimization metric:
 
 ```python
+import sys
+
+
+def fail_constraint(message):
+    print(f"Constraint violated: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
 if output != expected:
-    print(f"Constraint violated: output differs from baseline")
+    fail_constraint("output differs from baseline")
 
 if memory_mb > 4000:
-    print(f"Constraint violated: memory usage {memory_mb}MB exceeds 4GB limit")
+    fail_constraint("memory usage exceeds 4GB limit")
 ```
+
+The evaluator template can prevent its own metric from being emitted after a
+failed constraint. Complete enforcement also requires the Weco CLI to reject a
+non-zero evaluator exit before parsing output; in-process Python redirection is
+not a security boundary for optimized code.
 
 ## Stable Evaluation Interface
 
@@ -122,6 +147,9 @@ Expected output for a baseline (comparing against itself):
 - Speedup: `speedup: 1.0000` (no improvement yet)
 - Accuracy: The actual accuracy value
 - Loss: The actual loss value
+
+Also force a known constraint failure and verify that the script exits non-zero
+without printing a metric.
 
 ## Templates
 

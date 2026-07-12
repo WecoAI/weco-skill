@@ -29,7 +29,8 @@ Only add constraints if the user specifically requests them:
 
 ### Output Format
 
-The script MUST print exactly one metric in this format:
+On success, the script MUST exit zero and print exactly one finite metric to
+stdout in this format:
 
 ```
 metric_name: value
@@ -44,17 +45,22 @@ loss: 0.0234
 
 ### Constraint Violations
 
-Print violations as regular messages (NOT in metric format):
+Constraint violations MUST fail closed: write a diagnostic to stderr, exit
+non-zero immediately, and do not print any metric:
 
 ```python
-# CORRECT - printed as message
-print("Constraint violated: output differs from baseline")
+import sys
 
-# WRONG - don't format violations as metrics
-print("correct: 0")  # This would be parsed as a metric!
+
+if output != expected:
+    print("Constraint violated: output differs from baseline", file=sys.stderr)
+    raise SystemExit(1)
 ```
 
-Weco sees all output and will avoid solutions that print constraint violations.
+Never continue to metric emission after a failed constraint, and never print a
+penalty metric such as `correct: 0`. The CLI must also reject non-zero evaluator
+exits before parsing output; an in-process evaluator cannot securely isolate
+output from optimized code.
 
 ## For ML/Accuracy Tasks
 

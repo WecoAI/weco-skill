@@ -19,7 +19,7 @@
 4. **Explain why the winner won** - builds trust and teaches
 5. **Always ask before modifying project files** - no exceptions
 6. **Save a report** for every optimization (`.weco/<task>/report.md`)
-7. The eval script MUST print exactly one line: `metric_name: value`
+7. On success, the eval MUST exit zero and print exactly one finite `metric_name: value`; on a failed constraint, exit non-zero and print no metric
 
 ## Common Metrics
 

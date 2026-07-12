@@ -341,7 +341,7 @@ Create an evaluation script based on the inferred goal. Use sensible defaults:
 1. Check if the upstream project has unit tests (e.g., `tests/test_parser.py`)
 2. Include those test cases in the eval harness as a correctness gate
 3. If no upstream tests exist, generate reference outputs from the **baseline** (frozen copy), not from the current solution
-4. The eval should return 0 throughput (or fail) if any correctness test fails
+4. If any correctness test fails, the eval MUST exit non-zero immediately and emit no metric — never return a fallback value such as 0
 
 Write the evaluation script and wrapper automatically.
 

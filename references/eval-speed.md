@@ -11,8 +11,17 @@ See [assets/evaluate-speed.py](../assets/evaluate-speed.py) for the complete tem
 
 ```python
 """Evaluate performance improvement."""
-import time
+
 import importlib.util
+import math
+import sys
+import time
+
+
+def fail_constraint(message):
+    """Fail without emitting a metric that could score an invalid candidate."""
+    print(f"Constraint violated: {message}", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def load_module(path):
@@ -41,15 +50,19 @@ test_inputs = ()
 # CORRECTNESS CHECK
 baseline_result = baseline.TARGET_FUNCTION(*test_inputs)
 optimized_result = optimized.TARGET_FUNCTION(*test_inputs)
+outputs_match = bool(baseline_result == optimized_result)
 
-if baseline_result != optimized_result:
-    print(f"Constraint violated: output differs from baseline")
+if not outputs_match:
+    fail_constraint("optimized output differs from baseline")
 
 # PERFORMANCE MEASUREMENT
 baseline_time = benchmark(baseline.TARGET_FUNCTION, test_inputs)
 optimized_time = benchmark(optimized.TARGET_FUNCTION, test_inputs)
 
 speedup = baseline_time / optimized_time
+if not math.isfinite(speedup) or speedup <= 0:
+    fail_constraint("speedup must be finite and positive")
+
 print(f"speedup: {speedup:.4f}")
 ```
 
@@ -65,5 +78,5 @@ print(f"speedup: {speedup:.4f}")
 - Use realistic input sizes
 - Include warmup iterations to avoid cold-start effects
 - Run multiple iterations for stable measurements
-- Always verify correctness before measuring speed
+- Treat correctness as a hard gate: exit non-zero and emit no metric on failure
 - Use `time.perf_counter()` for accurate timing

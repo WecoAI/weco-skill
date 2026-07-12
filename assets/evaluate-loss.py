@@ -3,8 +3,8 @@
 IMPORTANT: Weco optimizes a SINGLE metric. This script should print exactly one
 metric in the format: metric_name: value (e.g., "loss: 0.0523")
 
-Constraint violations (training time, memory, etc.) should be printed as
-regular messages - Weco will see them and avoid solutions that violate constraints.
+Constraint violations (training time, memory, etc.) must exit non-zero
+before this evaluator prints the metric.
 """
 import time
 import importlib.util
@@ -25,7 +25,7 @@ X_val = None
 y_val = None
 
 # =============================================================================
-# CONSTRAINT CHECKS (print violations, don't use as metrics)
+# CONSTRAINT CHECKS (hard gates - do not emit a metric on failure)
 # =============================================================================
 # Example: Check training time constraint
 # start = time.perf_counter()
@@ -33,13 +33,13 @@ y_val = None
 # training_time = time.perf_counter() - start
 # max_training_time = 300  # 5 minutes
 # if training_time > max_training_time:
-#     print(f"Constraint violated: training took {training_time:.1f}s, exceeds {max_training_time}s limit")
+#     raise SystemExit("Constraint violated: training time exceeds limit")
 
 # Example: Check for NaN/Inf in outputs
 # if torch.isnan(output).any():
-#     print("Constraint violated: NaN detected in model output")
+#     raise SystemExit("Constraint violated: NaN detected in model output")
 # if torch.isinf(output).any():
-#     print("Constraint violated: Inf detected in model output")
+#     raise SystemExit("Constraint violated: Inf detected in model output")
 
 # =============================================================================
 # LOSS MEASUREMENT (the single metric to optimize)

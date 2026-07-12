@@ -3,8 +3,8 @@
 IMPORTANT: Weco optimizes a SINGLE metric. This script should print exactly one
 metric in the format: metric_name: value (e.g., "accuracy: 0.95")
 
-Constraint violations (latency limits, memory, etc.) should be printed as
-regular messages - Weco will see them and avoid solutions that violate constraints.
+Constraint violations (latency limits, memory, etc.) must exit non-zero
+before this evaluator prints the metric.
 """
 import importlib.util
 
@@ -48,7 +48,7 @@ X_test = None
 y_test = None
 
 # =============================================================================
-# CONSTRAINT CHECKS (print violations, don't use as metrics)
+# CONSTRAINT CHECKS (hard gates - do not emit a metric on failure)
 # =============================================================================
 # Example: Check inference latency constraint
 # import time
@@ -57,7 +57,7 @@ y_test = None
 # latency_ms = (time.perf_counter() - start) * 1000
 # max_latency_ms = 100  # Example constraint
 # if latency_ms > max_latency_ms:
-#     print(f"Constraint violated: latency {latency_ms:.1f}ms exceeds {max_latency_ms}ms limit")
+#     raise SystemExit("Constraint violated: inference latency exceeds limit")
 
 # =============================================================================
 # ACCURACY MEASUREMENT (the single metric to optimize)

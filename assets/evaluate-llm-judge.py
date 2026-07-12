@@ -258,17 +258,15 @@ def judge_response(scenario: dict, response: str) -> dict:
 
 if __name__ == "__main__":
     if not TRAINING_SCENARIOS or "TODO" in str(TRAINING_SCENARIOS[0]):
-        print("Error: TRAINING_SCENARIOS not configured. Edit this file.")
-        print("prompt_quality: 0.00")
-        exit(1)
+        print("Error: TRAINING_SCENARIOS not configured. Edit this file.", file=sys.stderr)
+        sys.exit(1)
 
     # Validate models before running any scenarios
     print("Validating model availability...", file=sys.stderr)
     if not validate_models():
         print("Error: One or more models are not available. Fix the model "
               "configuration at the top of this file.", file=sys.stderr)
-        print("prompt_quality: 0.00")
-        exit(1)
+        sys.exit(1)
 
     total_score = 0.0
     scenario_count = 0

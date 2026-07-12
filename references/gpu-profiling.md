@@ -125,7 +125,7 @@ MAX_MEMORY_MB = 4000  # 4GB limit
 
 peak_memory_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
 if peak_memory_mb > MAX_MEMORY_MB:
-    print(f"Constraint violated: peak memory {peak_memory_mb:.0f}MB exceeds {MAX_MEMORY_MB}MB")
+    raise SystemExit("Constraint violated: peak GPU memory exceeds limit")
 
 print(f"kernel_time_ms: {kernel_time_ms:.4f}")
 ```
@@ -167,6 +167,7 @@ print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 """Evaluate GPU kernel performance."""
 import torch
 import importlib.util
+import sys
 
 
 def load_module(path):
@@ -189,15 +190,14 @@ baseline_result = baseline.kernel(x)
 optimized_result = optimized.kernel(x)
 
 if not torch.allclose(baseline_result, optimized_result, rtol=1e-3, atol=1e-5):
-    max_diff = (baseline_result - optimized_result).abs().max().item()
-    print(f"Constraint violated: outputs differ by {max_diff:.2e}")
+    raise SystemExit("Constraint violated: output differs from baseline")
 
 # Memory check
 torch.cuda.reset_peak_memory_stats()
 _ = optimized.kernel(x)
 peak_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
 if peak_mb > 4000:
-    print(f"Constraint violated: peak memory {peak_mb:.0f}MB exceeds limit")
+    raise SystemExit("Constraint violated: peak GPU memory exceeds limit")
 
 # Performance measurement
 def benchmark(func, *args, n_warmup=50, n_iter=200):
@@ -221,6 +221,6 @@ optimized_ms = benchmark(optimized.kernel, x)
 
 speedup = baseline_ms / optimized_ms
 print(f"speedup: {speedup:.4f}")
-print(f"baseline_ms: {baseline_ms:.4f}")
-print(f"optimized_ms: {optimized_ms:.4f}")
+print(f"baseline_ms={baseline_ms:.4f}", file=sys.stderr)
+print(f"optimized_ms={optimized_ms:.4f}", file=sys.stderr)
 ```

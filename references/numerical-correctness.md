@@ -12,7 +12,7 @@ This code is BROKEN for floating-point results:
 ```python
 # WRONG - will almost always fail for floats
 if baseline_result != optimized_result:
-    print("Constraint violated")
+    raise SystemExit("Constraint violated: output differs from baseline")
 ```
 
 Floating-point arithmetic is not exact. `0.1 + 0.2 != 0.3` in most languages.
@@ -30,7 +30,7 @@ def is_close(a, b, rel_tol=1e-9, abs_tol=1e-12):
 
 # Usage
 if not is_close(baseline_result, optimized_result, rel_tol=1e-5):
-    print(f"Constraint violated: result differs by {abs(baseline_result - optimized_result):.2e}")
+    raise SystemExit("Constraint violated: result differs from baseline")
 ```
 
 ### For NumPy Arrays
@@ -44,8 +44,7 @@ def arrays_close(a, b, rtol=1e-5, atol=1e-8):
 
 # Usage
 if not arrays_close(baseline_result, optimized_result):
-    diff = np.abs(baseline_result - optimized_result)
-    print(f"Constraint violated: max diff = {diff.max():.2e}, mean diff = {diff.mean():.2e}")
+    raise SystemExit("Constraint violated: array differs from baseline")
 ```
 
 ### For PyTorch Tensors
@@ -59,9 +58,9 @@ def tensors_close(a, b, rtol=1e-5, atol=1e-8):
 
 # Also check for NaN/Inf
 if torch.isnan(optimized_result).any():
-    print("Constraint violated: NaN in output")
+    raise SystemExit("Constraint violated: NaN in output")
 if torch.isinf(optimized_result).any():
-    print("Constraint violated: Inf in output")
+    raise SystemExit("Constraint violated: Inf in output")
 ```
 
 ## Choosing Tolerances
@@ -87,7 +86,7 @@ The comparison is: `|a - b| <= atol + rtol * |b|`
 
 ```python
 if baseline_result.shape != optimized_result.shape:
-    print(f"Constraint violated: shape mismatch {baseline_result.shape} vs {optimized_result.shape}")
+    raise SystemExit("Constraint violated: output shape differs from baseline")
 ```
 
 ### Stochastic Algorithms
@@ -112,7 +111,7 @@ optimized_mean = np.mean(optimized_results)
 from scipy import stats
 _, p_value = stats.ttest_ind(baseline_results, optimized_results)
 if p_value < 0.05:
-    print(f"Constraint violated: statistically different outputs (p={p_value:.4f})")
+    raise SystemExit("Constraint violated: statistically different outputs")
 ```
 
 ### Sorting and Ordering
@@ -124,5 +123,5 @@ For algorithms that produce unordered results:
 baseline_sorted = np.sort(baseline_result)
 optimized_sorted = np.sort(optimized_result)
 if not arrays_close(baseline_sorted, optimized_sorted):
-    print("Constraint violated: different values (ignoring order)")
+    raise SystemExit("Constraint violated: different values (ignoring order)")
 ```

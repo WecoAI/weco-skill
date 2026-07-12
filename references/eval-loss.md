@@ -32,9 +32,9 @@ y_val = None
 # import torch
 # output = optimized.forward(X_val)
 # if torch.isnan(output).any():
-#     print("Constraint violated: NaN detected in model output")
+#     raise SystemExit("Constraint violated: NaN detected in model output")
 # if torch.isinf(output).any():
-#     print("Constraint violated: Inf detected in model output")
+#     raise SystemExit("Constraint violated: Inf detected in model output")
 
 loss = optimized.compute_loss(X_val, y_val)
 print(f"loss: {loss:.6f}")
