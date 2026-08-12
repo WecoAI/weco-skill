@@ -290,6 +290,8 @@ WECO_RUN_ID=$(weco observe init --name "<run-name>" --metric <metric> --goal <mi
 | `--goal` | `min` or `max` |
 | `--source` | Path to source file (captures baseline code as step 0) |
 
+`init` exits non-zero on any failure, so verify `$WECO_RUN_ID` is non-empty before starting the loop.
+
 ### weco observe log
 
 Log a step result to an observed run. **Only log steps that ran successfully and produced a metric***
@@ -311,6 +313,7 @@ weco observe log \
 | `--metrics` | JSON object with metric values |
 | `--source` | Path to source file at this step |
 | `--parent-step` | Optional. Parent step to branch from. If omitted, chains to the last successful step. |
+| `--strict` | Optional. Exit non-zero when Weco itself fails. By default `log` exits non-zero only for errors the caller must fix (bad JSON, unreadable file, not logged in, rejected request); Weco-side failures are reported on stderr with exit 0 so they never crash the tracked loop. |
 
 ### Branching
 
