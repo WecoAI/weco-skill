@@ -107,6 +107,19 @@ weco run \
   --require-review
 ```
 
+### With web research
+
+Use `--enable-web-search` when the problem likely has published techniques (papers, competition write-ups, specialized libraries). Weco researches the problem once after the baseline evaluation and uses the findings to guide exploration. Adds ~30-60s to the first step and costs credits.
+
+```bash
+weco run \
+  --source .weco/optimize.py \
+  --eval-command "bash .weco/evaluate.sh" \
+  --metric speedup \
+  --goal maximize \
+  --enable-web-search
+```
+
 ## Running in Background
 
 ```bash

@@ -50,6 +50,7 @@ metadata:
 | `--eval-timeout` | - | Timeout in seconds per evaluation |
 | `--save-logs` | false | Save step outputs to `.runs/<id>/outputs/` |
 | `--require-review` | false | Require manual approval of each change |
+| `--enable-web-search` | false | Research the problem on the web after the baseline; findings guide the run. Costs credits |
 | `--api-key` | - | Provider API keys (see below) |
 | `--output` | `rich` | `rich` (interactive) or `plain` (machine-readable) |
 
