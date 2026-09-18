@@ -39,14 +39,14 @@ PROVIDER = "anthropic"
 # =============================================================================
 # MODEL CONFIGURATION
 # =============================================================================
-# Anthropic: claude-sonnet-4-5, claude-haiku-4-5, claude-opus-4-6
-# OpenAI:    gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3
+# Anthropic: claude-sonnet-5, claude-haiku-4-5, claude-opus-5
+# OpenAI:    gpt-5.4, gpt-5.4-mini, gpt-5-nano, o3
 
 # Model for executing the prompt being optimized
-EXECUTION_MODEL = "claude-sonnet-4-5"
+EXECUTION_MODEL = "claude-sonnet-5"
 
 # Model for judging responses (use a capable model)
-JUDGE_MODEL = "claude-sonnet-4-5"
+JUDGE_MODEL = "claude-sonnet-5"
 
 # All models used in this script (for validation)
 ALL_MODELS = list(set([EXECUTION_MODEL, JUDGE_MODEL]))

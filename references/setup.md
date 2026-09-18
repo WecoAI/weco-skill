@@ -60,6 +60,6 @@ weco run ... --api-key openai=YOUR_KEY anthropic=YOUR_KEY gemini=YOUR_KEY
 ```
 
 Supported providers:
-- `gemini` (default model: `gemini-3-flash-preview`)
-- `openai` (default model: `o4-mini`)
-- `anthropic` (default model: `claude-opus-4-5`)
+- `gemini` (default model: `gemini-3.8-flash`)
+- `openai` (default model: `gpt-5.4-mini`)
+- `anthropic` (default model: `claude-opus-5`)

@@ -74,10 +74,10 @@ except ImportError:
 PROVIDER = "anthropic"
 
 # Model configuration
-# Anthropic: claude-sonnet-4-5, claude-haiku-4-5, claude-opus-4-6
-# OpenAI:    gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3
-EXECUTION_MODEL = "claude-sonnet-4-5"
-JUDGE_MODEL = "claude-sonnet-4-5"
+# Anthropic: claude-sonnet-5, claude-haiku-4-5, claude-opus-5
+# OpenAI:    gpt-5.4, gpt-5.4-mini, gpt-5.4-nano, o3
+EXECUTION_MODEL = "claude-sonnet-5"
+JUDGE_MODEL = "claude-sonnet-5"
 
 
 def chat(model, messages, system=None, max_tokens=1024):
@@ -499,7 +499,7 @@ If variance is high (> 0.3), **warn the user and suggest fixes before proceeding
 
 LLM outputs are non-deterministic. To get stable metrics:
 
-1. **Use capable models** - Claude Opus or GPT-4o for judging
+1. **Use capable models** - Claude Opus or GPT-5.4 for judging
 2. **More scenarios** - 15-20 scenarios provide more stable signal than 5
 3. **Structured output** - JSON reduces parsing failures
 4. **Add reference examples** - For style/domain tasks, examples reduce ambiguity
@@ -629,15 +629,15 @@ Use capable models for judging—judge quality directly affects optimization qua
 
 **Recommended (in order):**
 1. **Claude Opus** - Highest evaluation fidelity, best reasoning stability
-2. **GPT-4.1 / Claude Sonnet** - Good balance of quality and cost
-3. **LLaMA-3.1-70B** - Cost-effective for large-scale runs
+2. **GPT-5.4 / Claude Sonnet** - Good balance of quality and cost
+3. **GPT-5.4 Mini / Claude Haiku** - Cost-effective for large-scale runs
 
 **Execution model** (running the prompt being optimized) can be cheaper—Sonnet or Haiku usually suffice.
 
 ```python
 # Recommended configuration
-JUDGE_MODEL = "claude-opus-4-6"      # High quality for judging
-EXECUTION_MODEL = "claude-sonnet-4-5"  # Faster/cheaper for execution
+JUDGE_MODEL = "claude-opus-5"      # High quality for judging
+EXECUTION_MODEL = "claude-sonnet-5"  # Faster/cheaper for execution
 ```
 
 ### Multi-Judge Ensemble
@@ -646,8 +646,8 @@ For reduced variance on high-stakes optimization, use multiple judges and averag
 
 ```python
 JUDGE_MODELS = [
-    "claude-opus-4-6",
-    "gpt-4.1",
+    "claude-opus-5",
+    "gpt-5.4",
 ]
 
 def ensemble_judge(scenario, response):

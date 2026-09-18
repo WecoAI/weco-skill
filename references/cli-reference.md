@@ -62,9 +62,9 @@ metadata:
 ```
 
 Supported providers and their default models:
-- `gemini` → `gemini-3.1-pro-preview`
-- `openai` → `o4-mini`
-- `anthropic` → `claude-opus-4-5`
+- `gemini` → `gemini-3.8-flash`
+- `openai` → `gpt-5.4-mini`
+- `anthropic` → `claude-opus-5`
 
 ## weco resume
 

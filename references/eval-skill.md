@@ -57,7 +57,7 @@ All template code uses the `chat()` helper (see Provider Abstraction in SKILL.md
 ```python
 # The skill IS the system prompt
 response = chat(
-    model="claude-sonnet-4-5",  # or "gpt-4.1" for OpenAI
+    model="claude-sonnet-5",  # or "gpt-5.4" for OpenAI
     messages=[{"role": "user", "content": "User's request"}],
     system=skill_content,
     max_tokens=4096,
@@ -225,16 +225,16 @@ Set the provider and model IDs at the top. See the Model Reference in SKILL.md f
 PROVIDER = "anthropic"
 
 # Model for running the skill (the "agent under test")
-# Anthropic: claude-sonnet-4-5 | OpenAI: gpt-4.1
-SKILL_MODEL = "claude-sonnet-4-5"
+# Anthropic: claude-sonnet-5 | OpenAI: gpt-5.4
+SKILL_MODEL = "claude-sonnet-5"
 
 # Model for the user simulator
-# Anthropic: claude-haiku-4-5 | OpenAI: gpt-4.1-mini
+# Anthropic: claude-haiku-4-5 | OpenAI: gpt-5.4-mini
 SIMULATOR_MODEL = "claude-haiku-4-5"
 
 # Model for grading transcripts (use a capable model)
-# Anthropic: claude-sonnet-4-5 | OpenAI: gpt-4.1
-JUDGE_MODEL = "claude-sonnet-4-5"
+# Anthropic: claude-sonnet-5 | OpenAI: gpt-5.4
+JUDGE_MODEL = "claude-sonnet-5"
 
 # Maximum turns per scenario
 MAX_TURNS = 10
@@ -494,12 +494,12 @@ except ImportError:
 PROVIDER = "anthropic"
 
 # Model configuration
-# Anthropic: claude-sonnet-4-5, claude-haiku-4-5, claude-opus-4-6
-# OpenAI:    gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3
-SKILL_MODEL = "claude-sonnet-4-5"
+# Anthropic: claude-sonnet-5, claude-haiku-4-5, claude-opus-5
+# OpenAI:    gpt-5.4, gpt-5.4-mini, gpt-5-nano, o3
+SKILL_MODEL = "claude-sonnet-5"
 SIMULATOR_MODEL = "claude-haiku-4-5"
 INPUT_CHECK_MODEL = "claude-haiku-4-5"
-JUDGE_MODEL = "claude-sonnet-4-5"
+JUDGE_MODEL = "claude-sonnet-5"
 
 MAX_TURNS = 10
 

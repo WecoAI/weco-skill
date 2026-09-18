@@ -6,30 +6,28 @@ Use these model IDs when generating evaluation scripts. **Always use aliases** (
 
 | Model | API ID | Cost (in/out per MTok) | Use For |
 |-------|--------|------------------------|---------|
-| Claude Opus 4.6 | `claude-opus-4-6` | $5 / $25 | Best judge model, complex evaluation |
-| Claude Sonnet 4.5 | `claude-sonnet-4-5` | $3 / $15 | Default skill/prompt execution, good judge |
+| Claude Opus 5 | `claude-opus-5` | $5 / $25 | Best judge model, complex evaluation |
+| Claude Sonnet 5 | `claude-sonnet-5` | $2 / $10 | Default skill/prompt execution, good judge |
 | Claude Haiku 4.5 | `claude-haiku-4-5` | $1 / $5 | User simulator, input detection, cheap tasks |
 
-**Legacy (still available):**
+**Previous generation (still available):**
 
 | Model | API ID | Cost (in/out per MTok) |
 |-------|--------|------------------------|
-| Claude Sonnet 4 | `claude-sonnet-4-0` | $3 / $15 |
-| Claude Haiku 3 | `claude-3-haiku-20240307` | $0.25 / $1.25 |
+| Claude Opus 4.8 | `claude-opus-4-8` | $5 / $25 |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` | $3 / $15 |
 
 ## OpenAI Models
 
 | Model | API ID | Use For |
 |-------|--------|---------|
-| GPT-5.2 | `gpt-5.2` | Latest flagship |
-| GPT-5 | `gpt-5` | Flagship |
-| GPT-5 Mini | `gpt-5-mini` | Cost-effective |
+| GPT-5.6 | `gpt-5.6` | Latest flagship |
+| GPT-5.4 | `gpt-5.4` | Strong flagship, cheaper |
+| GPT-5.4 Mini | `gpt-5.4-mini` | Cost-effective |
 | GPT-5 Nano | `gpt-5-nano` | Cheapest |
+| GPT-5 | `gpt-5` | Previous flagship |
+| GPT-5 Mini | `gpt-5-mini` | Previous cost-effective |
 | GPT-4.1 | `gpt-4.1` | Reliable, well-tested |
-| GPT-4.1 Mini | `gpt-4.1-mini` | Cost-effective |
-| GPT-4.1 Nano | `gpt-4.1-nano` | Cheapest |
-| GPT-4o | `gpt-4o` | Previous flagship |
-| GPT-4o Mini | `gpt-4o-mini` | Previous cost-effective |
 | o4 Mini | `o4-mini` | Reasoning |
 | o3 | `o3` | Reasoning |
 
@@ -39,19 +37,19 @@ Use these model IDs when generating evaluation scripts. **Always use aliases** (
 
 | Role | Default | Why |
 |------|---------|-----|
-| Skill/prompt execution (agent under test) | `claude-sonnet-4-5` | Good balance of capability and cost |
+| Skill/prompt execution (agent under test) | `claude-sonnet-5` | Good balance of capability and cost |
 | User simulator | `claude-haiku-4-5` | Cheap, fast, sufficient for simulation |
 | Input detection (`needs_user_input`) | `claude-haiku-4-5` | Binary classification, cheapest model works |
-| Transcript/response judge | `claude-sonnet-4-5` | Needs good judgment; upgrade to `claude-opus-4-6` for high-stakes |
+| Transcript/response judge | `claude-sonnet-5` | Needs good judgment; upgrade to `claude-opus-5` for high-stakes |
 
 **OpenAI alternative:**
 
 | Role | Default | Why |
 |------|---------|-----|
-| Skill/prompt execution | `gpt-4.1` | Reliable, well-tested |
-| User simulator | `gpt-4.1-mini` | Cost-effective |
-| Input detection | `gpt-4.1-nano` | Cheapest, sufficient for binary classification |
-| Transcript/response judge | `gpt-4.1` | Good judgment; upgrade to `o3` for high-stakes |
+| Skill/prompt execution | `gpt-5.4` | Strong and reliable |
+| User simulator | `gpt-5.4-mini` | Cost-effective |
+| Input detection | `gpt-5-nano` | Cheapest, sufficient for binary classification |
+| Transcript/response judge | `gpt-5.4` | Good judgment; upgrade to `o3` for high-stakes |
 
 Ask the user which provider they prefer. The evaluation templates support both — set `PROVIDER = "anthropic"` or `PROVIDER = "openai"` at the top of the evaluation script.
 
